@@ -29,46 +29,17 @@ export const ASSET_ANALYSIS = {
 export const DAILY_SUMMARY =
   'A carteira encerrou o dia com variação de +0,84%, acima do Ibovespa (+0,31%) e do CDI (+0,04%). PETR4 respondeu por 62% da variação positiva. Três sinais foram ativados nas últimas 24 horas: sobrevenda de RSI em PETR4, cruzamento de médias em VALE3 e rompimento de banda superior em BTC. Nenhum ativo da watchlist registrou queda superior a 3% no período.';
 
-/** Respostas mockadas do chat (RF-15) selecionadas por palavra-chave da pergunta. */
-export const CHAT_ANSWERS = [
-  {
-    match: ['rentável', 'rentavel', 'melhor', 'maior alta'],
-    tools: ['portfolio.posicoes()', 'portfolio.rentabilidade(periodo=mes)'],
-    text: 'No mês corrente, a posição com maior retorno percentual é PETR4, com +19,7% sobre o preço médio de R$ 32,10, seguida por BTC (+11,3%) e ETH (+10,2%). Em valores absolutos, PETR4 contribui com R$ 1.264,00 do resultado não realizado da carteira.',
-  },
-  {
-    match: ['exposição', 'exposicao', 'distribuição', 'distribuicao', 'concentr'],
-    tools: ['portfolio.distribuicao()'],
-    text: 'A carteira está distribuída em 58,4% ações, 17,2% cripto, 13,1% ETF e 11,3% FII. Por setor, a maior concentração é no setor financeiro (24,8%), com ITUB4 respondendo por toda a exposição. Em moeda, 82,8% está em BRL e 17,2% em USD.',
-  },
-  {
-    match: ['prejuízo', 'prejuizo', 'queda', 'pior'],
-    tools: ['portfolio.posicoes()'],
-    text: 'Duas posições apresentam resultado negativo: HGLG11, com -2,4% sobre o preço médio de R$ 158,90, e WEGE3, com -0,8%. Somadas, representam R$ -214,60 de resultado não realizado, equivalente a 0,9% do patrimônio da carteira.',
-  },
-  {
-    match: ['cdi', 'ibovespa', 'benchmark', 'compar'],
-    tools: ['portfolio.comparativo_benchmark(benchmark=CDI)', 'portfolio.comparativo_benchmark(benchmark=IBOV)'],
-    text: 'Desde 03/02/2026, a carteira acumula +24,6% contra +12,4% do Ibovespa e +6,5% do CDI no mesmo intervalo. A diferença em relação ao Ibovespa é de 12,2 pontos percentuais, e a maior contribuição relativa vem da exposição a cripto no segundo trimestre.',
-  },
-  {
-    match: ['operaç', 'operac', 'histórico', 'historico', 'comprei', 'vendi'],
-    tools: ['portfolio.operacoes()'],
-    text: 'Você registrou 9 operações fictícias entre 11/02/2026 e 01/07/2026: 8 compras e 1 venda. A venda foi de 100 ações de PETR4 a R$ 36,80 em 22/05/2026, com resultado realizado de R$ 470,00 sobre o preço médio da posição.',
-  },
-  {
-    match: ['sinal', 'sinais', 'alerta'],
-    tools: ['sinais.ativos()'],
-    text: 'Há 6 sinais ativos entre os ativos da sua watchlist. Os três mais recentes: rompimento de banda superior em BTC (1 h), sobrevenda de RSI em PETR4 (3 h) e volume atípico em MGLU3 (6 h). Todos incluem o histórico de ocorrências dos últimos 24 meses na tela do ativo.',
-  },
-];
-
+/** RF-15 — respostas do chat via function calling simulado: o roteador de intenção
+ * e as funções que consultam o estado real da carteira vivem em `api/client.js`
+ * (askAI). Aqui ficam só o texto de fallback e as sugestões de pergunta. */
 export const CHAT_FALLBACK =
-  'Não encontrei essa informação nos dados da sua carteira. Nesta versão o chat responde sobre rentabilidade, exposição por classe e setor, comparativo com CDI e Ibovespa, histórico de operações e sinais ativos.';
+  'Não encontrei essa informação nos dados da sua carteira. Nesta versão o chat consulta: resultado da carteira, exposição por classe e setor, comparação com CDI e Ibovespa, sinais ativos, o ativo com melhor ou pior retorno, e o histórico de operações.';
 
 export const CHAT_SUGGESTIONS = [
-  'Qual foi meu ativo mais rentável esse mês?',
+  'Qual foi meu ativo mais rentável?',
   'Como está minha exposição por setor?',
   'A carteira está acima do CDI?',
   'Quais sinais estão ativos agora?',
+  'Qual é o resultado da carteira?',
+  'Quais foram minhas últimas operações?',
 ];

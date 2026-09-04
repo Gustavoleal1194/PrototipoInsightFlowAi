@@ -7,11 +7,12 @@
 import { ASSETS, byTicker, generateCandles, toBRL } from './mock/assets.js';
 import { RULES, SIGNALS, BACKTESTS, ruleOf } from './mock/signals.js';
 import { OPERATIONS, EQUITY_CURVE, WATCHLIST } from './mock/portfolio.js';
-import { ASSET_ANALYSIS, DAILY_SUMMARY, CHAT_ANSWERS, CHAT_FALLBACK, DISCLAIMER } from './mock/ai.js';
+import { ASSET_ANALYSIS, DAILY_SUMMARY, CHAT_FALLBACK, DISCLAIMER } from './mock/ai.js';
 import { USER_RULES, USER_TRIGGERS, metricaOf, operadorOf } from './mock/userAlerts.js';
 import { NEWS } from './mock/news.js';
 import { USERS } from './mock/users.js';
 import { computeIndicators, lastDefined } from '../lib/indicators.js';
+import { fmtBRL, fmtPct, fmtNum, fmtDate } from '../lib/format.js';
 
 const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms));
 
@@ -461,14 +462,138 @@ export const api = {
     await delay(400);
     return { texto: DAILY_SUMMARY, disclaimer: DISCLAIMER, gerado_em: new Date().toISOString() };
   },
+  /** RF-15/UC-06 — function calling simulado: um roteador por palavra-chave escolhe
+   * uma das funções que consultam o estado real da carteira (nunca texto fixo) e a
+   * resposta é composta a partir do retorno dela — grounding (RN-02). */
   async askAI(pergunta) {
-    await delay(1100);
-    const p = pergunta.toLowerCase();
-    const hit = CHAT_ANSWERS.find((a) => a.match.some((m) => p.includes(m)));
-    return {
-      texto: hit?.text ?? CHAT_FALLBACK,
-      ferramentas: hit?.tools ?? [],
-      disclaimer: DISCLAIMER,
-    };
+    await delay(900);
+    const intent = interpretarPergunta(pergunta);
+    if (!intent) return { texto: CHAT_FALLBACK, ferramentas: [], disclaimer: DISCLAIMER };
+    const { texto, ferramentas } = await CHAT_FUNCTIONS[intent.fn](intent.args);
+    return { texto, ferramentas, disclaimer: DISCLAIMER };
   },
 };
+
+/* ----- function calling simulado do chat (RF-15) -----
+ * Cada função abaixo consulta o estado real da carteira via `api.*` (as mesmas
+ * funções usadas por Dashboard/Portfólio/Alertas) e compõe a resposta a partir
+ * do retorno — os números nunca são inventados no texto. */
+
+async function obterRentabilidadeCarteira() {
+  const resumo = await api.getPortfolioSummary();
+  return {
+    ferramentas: ['obterRentabilidadeCarteira()'],
+    texto:
+      `O resultado não realizado da carteira é ${fmtBRL(resumo.resultado)} (${fmtPct(resumo.resultado_pct)}) ` +
+      `sobre um custo total de ${fmtBRL(resumo.custo_total)}. O valor de mercado atual é ${fmtBRL(resumo.valor_total)}.`,
+  };
+}
+
+async function obterExposicaoPorSetor() {
+  const dist = await api.getDistribution();
+  const classes = dist.classe.map((c) => `${fmtNum(c.pct, 1)}% ${c.nome}`).join(', ');
+  const setores = dist.setor
+    .slice(0, 3)
+    .map((s) => `${s.nome} (${fmtNum(s.pct, 1)}%)`)
+    .join(', ');
+  return {
+    ferramentas: ['obterExposicaoPorSetor()'],
+    texto: `Por classe de ativo, a carteira está em ${classes}. Os setores com maior concentração são ${setores}.`,
+  };
+}
+
+async function compararComBenchmark() {
+  const resumo = await api.getPortfolioSummary();
+  const diffIbov = resumo.resultado_pct - resumo.benchmarks.ibovespa;
+  const diffCdi = resumo.resultado_pct - resumo.benchmarks.cdi;
+  return {
+    ferramentas: ['compararComBenchmark(benchmark=IBOV)', 'compararComBenchmark(benchmark=CDI)'],
+    texto:
+      `Desde o início da série acompanhada, a carteira acumula ${fmtPct(resumo.resultado_pct)} contra ` +
+      `${fmtPct(resumo.benchmarks.ibovespa)} do Ibovespa e ${fmtPct(resumo.benchmarks.cdi)} do CDI — ` +
+      `diferença de ${fmtPct(diffIbov)} em relação ao Ibovespa e ${fmtPct(diffCdi)} em relação ao CDI.`,
+  };
+}
+
+async function listarSinaisAtivos() {
+  const sinais = await api.getSignals({ apenasAtivos: true });
+  if (sinais.length === 0) {
+    return { ferramentas: ['listarSinaisAtivos()'], texto: 'Não há sinais ativos no momento entre os ativos monitorados.' };
+  }
+  const recentes = sinais
+    .slice(0, 3)
+    .map((s) => `${s.ticker} — ${s.regra.nome} (há ${Math.max(1, Math.round((Date.now() - new Date(s.data_ativacao).getTime()) / 3_600_000))} h)`)
+    .join('; ');
+  return {
+    ferramentas: ['listarSinaisAtivos()'],
+    texto: `Há ${sinais.length} sinal(is) ativo(s). Os mais recentes: ${recentes}. Cada um traz o histórico de ocorrências dos últimos 24 meses na tela do ativo.`,
+  };
+}
+
+async function obterAtivoMaisRentavel({ pior = false } = {}) {
+  const pos = await api.getPositions();
+  if (pos.length === 0) {
+    return { ferramentas: ['obterAtivoMaisRentavel()'], texto: 'Não há posições na carteira para calcular rentabilidade.' };
+  }
+  const ordenado = [...pos].sort((a, b) => (pior ? a.resultado_pct - b.resultado_pct : b.resultado_pct - a.resultado_pct));
+  const top = ordenado[0];
+  const proximos = ordenado
+    .slice(1, 3)
+    .map((p) => `${p.ticker} (${fmtPct(p.resultado_pct)})`)
+    .join(', ');
+  const rotulo = pior ? 'menor retorno percentual' : 'maior retorno percentual';
+  return {
+    ferramentas: ['obterAtivoMaisRentavel()'],
+    texto:
+      `A posição com ${rotulo} sobre o preço médio é ${top.ticker}, em ${fmtPct(top.resultado_pct)} ` +
+      `(${fmtBRL(top.resultado, top.moeda)} sobre preço médio de ${fmtBRL(top.preco_medio, top.moeda)}).` +
+      (proximos ? ` Em seguida: ${proximos}.` : ''),
+  };
+}
+
+async function listarOperacoes({ tipo, ticker } = {}) {
+  let ops = await api.getOperations();
+  if (tipo) ops = ops.filter((o) => o.tipo === tipo);
+  if (ticker) ops = ops.filter((o) => o.ticker === ticker);
+  if (ops.length === 0) {
+    return { ferramentas: ['listarOperacoes()'], texto: 'Nenhuma operação encontrada para esse filtro.' };
+  }
+  const compras = ops.filter((o) => o.tipo === 'COMPRA').length;
+  const vendas = ops.filter((o) => o.tipo === 'VENDA').length;
+  const recentes = ops
+    .slice(0, 3)
+    .map((o) => `${o.tipo === 'COMPRA' ? 'compra' : 'venda'} de ${o.quantidade} ${o.ticker} a ${fmtBRL(o.preco_unitario, byTicker(o.ticker)?.moeda)} em ${fmtDate(o.data)}`)
+    .join('; ');
+  const filtroLabel = [ticker, tipo ? (tipo === 'COMPRA' ? 'compras' : 'vendas') : null].filter(Boolean).join(' — ');
+  return {
+    ferramentas: [`listarOperacoes(${filtroLabel || 'todas'})`],
+    texto: `${ops.length} operação(ões) registrada(s)${filtroLabel ? ` (filtro: ${filtroLabel})` : ''}: ${compras} compra(s) e ${vendas} venda(s). As mais recentes: ${recentes}.`,
+  };
+}
+
+const CHAT_FUNCTIONS = {
+  obterRentabilidadeCarteira,
+  obterExposicaoPorSetor,
+  compararComBenchmark,
+  listarSinaisAtivos,
+  obterAtivoMaisRentavel,
+  listarOperacoes,
+};
+
+/** Roteador de intenção por palavra-chave (sem LLM) — escolhe a função e extrai
+ * os argumentos simples (ticker/tipo) reconhecíveis na pergunta. */
+function interpretarPergunta(pergunta) {
+  const p = pergunta.toLowerCase();
+  const tickerDetectado = ASSETS.find((a) => p.includes(a.ticker.toLowerCase()))?.ticker;
+
+  if (/pior|prejuízo|prejuizo|queda|perdeu|caiu mais/.test(p)) return { fn: 'obterAtivoMaisRentavel', args: { pior: true } };
+  if (/rentáv|rentav|melhor ativo|mais subiu|maior alta|maior retorno/.test(p)) return { fn: 'obterAtivoMaisRentavel', args: {} };
+  if (/exposiç|exposic|distribuiç|distribuic|concentr|\bsetor\b/.test(p)) return { fn: 'obterExposicaoPorSetor', args: {} };
+  if (/\bcdi\b|ibovespa|\bibov\b|benchmark|compar/.test(p)) return { fn: 'compararComBenchmark', args: {} };
+  if (/venda|vendi/.test(p)) return { fn: 'listarOperacoes', args: { tipo: 'VENDA', ticker: tickerDetectado } };
+  if (/compra|comprei/.test(p)) return { fn: 'listarOperacoes', args: { tipo: 'COMPRA', ticker: tickerDetectado } };
+  if (/operaç|operac|histórico|historico/.test(p)) return { fn: 'listarOperacoes', args: { ticker: tickerDetectado } };
+  if (/sinal|sinais|alerta/.test(p)) return { fn: 'listarSinaisAtivos', args: {} };
+  if (/rentabilidade|resultado da carteira|rendeu|lucro|ganho|patrimôni|patrimoni/.test(p)) return { fn: 'obterRentabilidadeCarteira', args: {} };
+  return null;
+}
