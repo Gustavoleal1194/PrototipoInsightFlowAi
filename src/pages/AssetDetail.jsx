@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Sparkles, Target, Radar, Gauge, BarChart3, Receipt, Landmark, Newspaper } from 'lucide-react';
+import { ArrowLeft, CloudOff, Plus, Sparkles, Target, Radar, Gauge, BarChart3, Receipt, Landmark, Newspaper } from 'lucide-react';
 import { useAsset, useHistory, useIndicators, useSignals, useScore, useAnalysis, useWatchlist, useWatchlistMutations, useNews } from '../hooks/queries.js';
 import { useUiStore } from '../store/index.js';
 import { PERIODS } from '../api/mock/assets.js';
@@ -26,7 +26,7 @@ export default function AssetDetail() {
   const { data: snapshot } = useIndicators(ticker);
   const { data: signals } = useSignals({ ticker, apenasAtivos: false });
   const { data: score } = useScore(ticker);
-  const { data: analysis, isLoading: loadingAI } = useAnalysis(ticker);
+  const { data: analysis, isLoading: loadingAI, isError: erroAI } = useAnalysis(ticker);
   const { data: news } = useNews(ticker);
   const { data: watchlist } = useWatchlist();
   const { add, remove } = useWatchlistMutations();
@@ -241,6 +241,14 @@ export default function AssetDetail() {
             {loadingAI ? (
               <div className="grid gap-2">
                 <Skeleton /> <Skeleton /> <Skeleton /> <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : erroAI ? (
+              <div className="flex items-start gap-2.5 rounded-sm border border-border-soft bg-elevated px-3 py-2.5">
+                <CloudOff size={16} className="mt-0.5 shrink-0 text-fg-3" />
+                <p className="text-xs text-fg-3">
+                  Análise por IA indisponível no momento. Os indicadores calculados abaixo continuam disponíveis
+                  normalmente.
+                </p>
               </div>
             ) : (
               <>

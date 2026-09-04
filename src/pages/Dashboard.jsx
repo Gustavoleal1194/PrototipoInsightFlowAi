@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Bell,
   BellOff,
+  CloudOff,
   Sparkles,
   Trash2,
   Wallet,
@@ -262,7 +263,7 @@ export default function Dashboard() {
   const { data: signals } = useSignals({ apenasAtivos: true });
   const { data: portfolio } = usePortfolio();
   const { data: positions } = usePositions();
-  const { data: resumo } = useDailySummary();
+  const { data: resumo, isError: erroResumo } = useDailySummary();
   const { remove, toggle } = useWatchlistMutations();
 
   return (
@@ -404,6 +405,14 @@ export default function Dashboard() {
                 <p className="text-fg-1">{resumo.texto}</p>
                 <Disclaimer className="mt-3" />
               </>
+            ) : erroResumo ? (
+              <div className="flex items-start gap-2.5 rounded-sm border border-border-soft bg-elevated px-3 py-2.5">
+                <CloudOff size={16} className="mt-0.5 shrink-0 text-fg-3" />
+                <p className="text-xs text-fg-3">
+                  Resumo diário por IA indisponível no momento. Os dados numéricos dos cartões acima continuam
+                  disponíveis normalmente.
+                </p>
+              </div>
             ) : (
               <div className="grid gap-2">
                 <Skeleton /> <Skeleton /> <Skeleton className="h-4 w-2/3" />

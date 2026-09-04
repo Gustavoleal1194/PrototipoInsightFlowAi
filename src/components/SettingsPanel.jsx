@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Bell,
   BellOff,
+  Bug,
   Download,
   Info,
   LogOut,
@@ -267,6 +268,7 @@ export default function SettingsPanel() {
     notificacoesMobile,
     notificacoesDesktop,
     resumoDiario,
+    iaIndisponivel,
     setFlag,
   } = useUiStore();
   const { data: watchlist } = useWatchlist();
@@ -340,6 +342,15 @@ export default function SettingsPanel() {
       </Card>
 
       <DadosCard usuario={usuario} watchlist={watchlist} posicoes={posicoes} operacoes={operacoes} />
+
+      <Card title={<SectionTitle icon={Bug} tone="amber">Modo desenvolvedor</SectionTitle>}>
+        <Toggle
+          label="Simular IA indisponível"
+          hint="UC-03 (fluxo alternativo): a análise por ativo e o resumo diário passam a sinalizar indisponibilidade, sem quebrar a tela — os dados numéricos continuam aparecendo normalmente."
+          value={iaIndisponivel}
+          onChange={(v) => setFlag('iaIndisponivel', v)}
+        />
+      </Card>
 
       <Card title={<SectionTitle icon={Info}>Sobre esta versão</SectionTitle>}>
         <p>

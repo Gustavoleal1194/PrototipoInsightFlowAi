@@ -34,6 +34,7 @@ export const useUiStore = create(
       notificacoesMobile: true,
       notificacoesDesktop: true,
       resumoDiario: true,
+      iaIndisponivel: false,
       tema: 'escuro',
       setPeriodo: (periodo) => set({ periodo }),
       toggleOverlay: (k) => set({ overlays: { ...get().overlays, [k]: !get().overlays[k] } }),

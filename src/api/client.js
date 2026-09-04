@@ -7,12 +7,13 @@
 import { ASSETS, byTicker, generateCandles, toBRL } from './mock/assets.js';
 import { RULES, SIGNALS, BACKTESTS, ruleOf } from './mock/signals.js';
 import { OPERATIONS, EQUITY_CURVE, WATCHLIST } from './mock/portfolio.js';
-import { ASSET_ANALYSIS, DAILY_SUMMARY, CHAT_FALLBACK, DISCLAIMER } from './mock/ai.js';
+import { CHAT_FALLBACK, DISCLAIMER } from './mock/ai.js';
 import { USER_RULES, USER_TRIGGERS, metricaOf, operadorOf } from './mock/userAlerts.js';
 import { NEWS } from './mock/news.js';
 import { USERS } from './mock/users.js';
 import { computeIndicators, lastDefined } from '../lib/indicators.js';
 import { fmtBRL, fmtPct, fmtNum, fmtDate } from '../lib/format.js';
+import { useUiStore } from '../store/index.js';
 
 const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms));
 
@@ -447,10 +448,16 @@ export const api = {
   },
 
   /* ----- IA (RF-13, RF-14, RF-15) ----- */
+  /** RF-13/RF-14/RNF-02 — texto gerado deterministicamente a partir dos indicadores
+   * reais do ativo (nunca fixture estática). UC-03 alternativo: com o toggle de
+   * desenvolvedor "IA indisponível" ligado, simula falha do provedor. */
   async getAssetAnalysis(ticker) {
     await delay(900);
+    if (useUiStore.getState().iaIndisponivel) {
+      throw new Error('Serviço de análise por IA temporariamente indisponível.');
+    }
     return {
-      texto: ASSET_ANALYSIS[ticker] ?? 'Sem análise disponível para este ativo nesta versão mockada.',
+      texto: gerarAnaliseAtivo(ticker),
       provedor: 'mock',
       modelo: 'fixtures-v1',
       prompt_versao: 'v1.0',
@@ -460,7 +467,10 @@ export const api = {
   },
   async getDailySummary() {
     await delay(400);
-    return { texto: DAILY_SUMMARY, disclaimer: DISCLAIMER, gerado_em: new Date().toISOString() };
+    if (useUiStore.getState().iaIndisponivel) {
+      throw new Error('Serviço de análise por IA temporariamente indisponível.');
+    }
+    return { texto: await gerarResumoDiario(), disclaimer: DISCLAIMER, gerado_em: new Date().toISOString() };
   },
   /** RF-15/UC-06 — function calling simulado: um roteador por palavra-chave escolhe
    * uma das funções que consultam o estado real da carteira (nunca texto fixo) e a
@@ -473,6 +483,98 @@ export const api = {
     return { texto, ferramentas, disclaimer: DISCLAIMER };
   },
 };
+
+/* ----- análise textual gerada deterministicamente (RF-13, RF-14, RNF-02) -----
+ * Monta o parágrafo a partir dos indicadores calculados de verdade — nunca um
+ * texto fixo por ticker. Linguagem estritamente factual (RN-01): descreve a
+ * condição técnica e o valor observado, sem linguagem de recomendação. */
+
+function gerarAnaliseAtivo(ticker) {
+  const { candles, ind } = seriesOf(ticker);
+  const last = candles[candles.length - 1];
+  const rsi14 = lastDefined(ind.rsi14);
+  const sma50 = lastDefined(ind.sma50);
+  const volRel = lastDefined(ind.volRel);
+  const bbUpper = lastDefined(ind.bollinger.upper);
+  const bbLower = lastDefined(ind.bollinger.lower);
+  const frases = [];
+
+  if (rsi14 != null) {
+    const faixa = rsi14 <= 30 ? 'na faixa de sobrevenda (≤ 30)' : rsi14 >= 70 ? 'na faixa de sobrecompra (≥ 70)' : 'em região neutra (entre 30 e 70)';
+    frases.push(`O RSI(14) está em ${fmtNum(rsi14, 1)}, ${faixa}.`);
+  }
+
+  if (sma50 != null) {
+    const dist = ((last.close - sma50) / sma50) * 100;
+    frases.push(`O preço está ${fmtPct(dist)} em relação à média móvel de 50 períodos (${fmtNum(sma50, 2)}).`);
+  }
+
+  if (bbUpper != null && last.close >= bbUpper) {
+    frases.push(`O fechamento tocou ou superou a banda superior de Bollinger (${fmtNum(bbUpper, 2)}).`);
+  } else if (bbLower != null && last.close <= bbLower) {
+    frases.push(`O fechamento tocou ou rompeu a banda inferior de Bollinger (${fmtNum(bbLower, 2)}).`);
+  }
+
+  if (volRel != null) frases.push(`O volume relativo é de ${fmtNum(volRel, 2)}× em relação à média de 20 pregões.`);
+
+  const sinalAtivo = SIGNALS.find((s) => s.ticker === ticker && !s.data_desativacao);
+  if (sinalAtivo) {
+    const regra = ruleOf(sinalAtivo.regra_id);
+    const bt = BACKTESTS[sinalAtivo.regra_id];
+    const horas = Math.max(1, Math.round((Date.now() - new Date(sinalAtivo.data_ativacao).getTime()) / 3_600_000));
+    const contexto = Object.entries(sinalAtivo.contexto)
+      .map(([k, v]) => `${k} em ${fmtNum(v, 2)}`)
+      .join(', ');
+    frases.push(
+      `O sinal "${regra.nome}" foi ativado há ${horas} h, com ${contexto} no momento da ativação. ` +
+        `Em ${bt.ocorrencias} ocorrências desta mesma condição nos últimos 24 meses, o retorno médio observado foi de ` +
+        `${fmtPct(bt.ret5)} em 5 pregões, ${fmtPct(bt.ret20)} em 20 pregões e ${fmtPct(bt.ret60)} em 60 pregões.`,
+    );
+  } else {
+    frases.push('Não há sinal técnico ativo para este ativo no momento.');
+  }
+
+  return frases.join(' ');
+}
+
+async function gerarResumoDiario() {
+  const resumo = await api.getPortfolioSummary();
+  const pos = await api.getPositions();
+  const sinais24h = SIGNALS.filter(
+    (s) => !s.data_desativacao && Date.now() - new Date(s.data_ativacao).getTime() <= 24 * 3_600_000,
+  );
+  const frases = [];
+
+  frases.push(`A carteira apresenta variação do dia de ${fmtPct(resumo.variacao_dia_pct)}.`);
+
+  const diffIbov = resumo.resultado_pct - resumo.benchmarks.ibovespa;
+  const diffCdi = resumo.resultado_pct - resumo.benchmarks.cdi;
+  frases.push(
+    `No período acompanhado, o resultado acumulado é de ${fmtPct(resumo.resultado_pct)}, contra ${fmtPct(resumo.benchmarks.ibovespa)} ` +
+      `do Ibovespa (${fmtPct(diffIbov)}) e ${fmtPct(resumo.benchmarks.cdi)} do CDI (${fmtPct(diffCdi)}).`,
+  );
+
+  if (pos.length > 0) {
+    // Comparação em BRL — as posições em USD (cripto) precisam ser convertidas para
+    // ficarem na mesma escala das posições em BRL antes de comparar contribuições.
+    const resultadoBRL = (p) => p.valor_atual_brl - p.custo_brl;
+    const maior = [...pos].sort((a, b) => Math.abs(resultadoBRL(b)) - Math.abs(resultadoBRL(a)))[0];
+    const contribuicao = resultadoBRL(maior);
+    const participacao = resumo.resultado !== 0 ? (contribuicao / resumo.resultado) * 100 : 0;
+    frases.push(
+      `${maior.ticker} responde pela maior contribuição individual ao resultado acumulado, com ${fmtBRL(contribuicao)} ` +
+        `(${fmtNum(Math.abs(participacao), 0)}% do resultado total da carteira).`,
+    );
+  }
+
+  frases.push(
+    sinais24h.length > 0
+      ? `${sinais24h.length} sinal(is) foram ativados nas últimas 24 horas: ${sinais24h.map((s) => `${s.ticker} (${ruleOf(s.regra_id).nome})`).join(', ')}.`
+      : 'Nenhum sinal foi ativado nas últimas 24 horas.',
+  );
+
+  return frases.join(' ');
+}
 
 /* ----- function calling simulado do chat (RF-15) -----
  * Cada função abaixo consulta o estado real da carteira via `api.*` (as mesmas
