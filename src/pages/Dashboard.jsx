@@ -13,7 +13,6 @@ import {
   Newspaper,
   Landmark,
   Bitcoin,
-  PieChart as PieChartIcon,
   ChevronRight,
 } from 'lucide-react';
 import {
@@ -28,7 +27,7 @@ import {
   useNews,
 } from '../hooks/queries.js';
 import { generateCandles, PERIODS } from '../api/mock/assets.js';
-import { Card, Kpi, Pill, Skeleton, Empty, SectionTitle, IconChip } from '../components/ui.jsx';
+import { Card, Kpi, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
 import { Sparkline, RsiChart } from '../components/Charts.jsx';
 import PriceChart from '../components/PriceChart.jsx';
 import Disclaimer from '../components/Disclaimer.jsx';
@@ -193,10 +192,11 @@ function AllocationSplitCard({ positions }) {
   const cripto = ladoDe((p) => p.tipo === 'CRIPTO');
 
   return (
-    <Card title={<SectionTitle icon={PieChartIcon} tone="purple">Ações vs. Cripto</SectionTitle>}>
+    <Card bodyClass="p-5 sm:p-6">
+      <h3 className="mb-5 text-center text-lg font-bold text-fg-0 sm:text-xl">Ações vs. Cripto</h3>
       <div className="grid gap-4 lg:grid-cols-2">
-        <RankingColumn icon={Landmark} tone="accent" label="Ações & Fundos" subtitulo="Maior valor investido" itens={acoes} />
-        <RankingColumn icon={Bitcoin} tone="amber" label="Cripto" subtitulo="Maior valor investido" itens={cripto} />
+        <RankingColumn icon={Landmark} tone="var(--accent)" label="Ações & Fundos" subtitulo="Maior valor investido" itens={acoes} />
+        <RankingColumn icon={Bitcoin} tone="var(--amber)" label="Cripto" subtitulo="Maior valor investido" itens={cripto} />
       </div>
     </Card>
   );
@@ -204,24 +204,31 @@ function AllocationSplitCard({ positions }) {
 
 function RankingColumn({ icon: Icon, tone, label, subtitulo, itens }) {
   return (
-    <div className="rounded-2xl border border-border-soft bg-elevated p-5">
-      <div className="flex flex-col items-center gap-1 pb-4 text-center">
-        <IconChip icon={Icon} tone={tone} size={38} />
-        <h4 className="mt-1 text-base font-bold text-fg-0">{label}</h4>
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-3">{subtitulo}</p>
+    <div className="rounded-2xl border border-border-soft p-5">
+      <div className="flex flex-col items-center gap-2 pb-4 text-center">
+        <div className="flex items-center gap-2">
+          <span
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-2"
+            style={{ borderColor: tone, color: tone }}
+          >
+            <Icon size={14} />
+          </span>
+          <h4 className="text-lg font-bold text-fg-0">{label}</h4>
+        </div>
+        <p className="text-sm font-semibold text-fg-2">{subtitulo}</p>
       </div>
 
       {itens.length === 0 ? (
         <p className="py-4 text-center text-xs text-fg-3">Nenhuma posição nesta classe.</p>
       ) : (
-        <ul className="grid gap-1 border-t border-border-soft pt-2">
+        <ul className="divide-y divide-border-soft">
           {itens.map((item, i) => (
             <li key={item.ticker}>
               <Link
                 to={`/ativo/${item.ticker}`}
-                className="flex items-center gap-3 rounded-lg px-1.5 py-2 hover:bg-muted"
+                className="flex items-center gap-3 px-1 py-3 hover:bg-muted"
               >
-                <span className="w-5 shrink-0 text-xs font-bold text-fg-3">#{i + 1}</span>
+                <span className="w-6 shrink-0 text-sm font-bold text-brand">#{i + 1}</span>
                 <span
                   className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[11px] font-bold text-white"
                   style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
@@ -242,9 +249,9 @@ function RankingColumn({ icon: Icon, tone, label, subtitulo, itens }) {
 
       <Link
         to="/portfolio"
-        className="mt-3 block rounded-lg border border-border-soft py-2 text-center text-xs font-semibold text-fg-2 hover:bg-muted hover:text-fg-0"
+        className="mt-4 block rounded-lg border border-border-main py-2.5 text-center text-sm font-semibold text-fg-1 hover:bg-muted"
       >
-        Ver carteira completa
+        Ver Ranking
       </Link>
     </div>
   );
@@ -303,10 +310,11 @@ export default function Dashboard() {
       {positions ? (
         <AllocationSplitCard positions={positions} />
       ) : (
-        <Card title={<SectionTitle icon={PieChartIcon} tone="purple">Alocação por classe</SectionTitle>}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
+        <Card bodyClass="p-5 sm:p-6">
+          <Skeleton className="mx-auto mb-5 h-6 w-48" />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
           </div>
         </Card>
       )}
