@@ -43,7 +43,7 @@ function DistribuicaoPorClasse({ itens }) {
   return (
     <div>
       <h5 className="mb-2 text-xs font-medium uppercase tracking-wider text-fg-3">Por classe de ativo</h5>
-      <div className="grid grid-cols-[auto_1fr] items-center gap-4">
+      <div className="grid grid-cols-[140px_1fr] items-center gap-4">
         <DonutChart data={itens} height={140} />
         <ul className="grid gap-1.5">
           {itens.map((d, i) => (
