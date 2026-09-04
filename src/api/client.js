@@ -426,6 +426,15 @@ export const api = {
     userRules = userRules.map((r) => (r.id === id ? { ...r, ativa: !r.ativa } : r));
     return { ok: true };
   },
+  async updateUserRule(id, patch) {
+    await delay(480);
+    if (!(Number(patch.valor) > 0)) throw new Error('Informe um valor-alvo maior que zero.');
+    userRules = userRules.map((r) => (r.id === id ? { ...r, ...patch } : r));
+    const atualizada = userRules.find((r) => r.id === id);
+    // RN-11: editar rearma a regra, mas não dispara na hora — mesmo que a condição já esteja
+    // satisfeita, o disparo só ocorre na próxima transição de não-atendida para atendida.
+    return { ...atualizada, avaliacao: evaluateRule(atualizada) };
+  },
   async deleteUserRule(id) {
     await delay(220);
     userRules = userRules.filter((r) => r.id !== id);

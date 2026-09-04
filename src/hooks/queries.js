@@ -33,6 +33,7 @@ export function useUserRuleMutations() {
   };
   return {
     create: useMutation({ mutationFn: (r) => api.createUserRule(r), onSuccess: inv }),
+    update: useMutation({ mutationFn: ({ id, patch }) => api.updateUserRule(id, patch), onSuccess: inv }),
     toggle: useMutation({ mutationFn: (id) => api.toggleUserRule(id), onSuccess: inv }),
     remove: useMutation({ mutationFn: (id) => api.deleteUserRule(id), onSuccess: inv }),
   };
