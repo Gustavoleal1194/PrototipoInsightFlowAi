@@ -116,7 +116,10 @@ export default function Login() {
           </div>
         </div>
         <div>
-          <label className="label" htmlFor="senha">Senha</label>
+          <div className="flex items-center justify-between">
+            <label className="label" htmlFor="senha">Senha</label>
+            <Link to="/recuperar-senha" className="text-xs font-semibold text-accent">Esqueceu a senha?</Link>
+          </div>
           <div className="field-icon-wrap">
             <Lock className="field-icon" />
             <input

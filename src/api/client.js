@@ -10,6 +10,7 @@ import { OPERATIONS, EQUITY_CURVE, WATCHLIST } from './mock/portfolio.js';
 import { ASSET_ANALYSIS, DAILY_SUMMARY, CHAT_ANSWERS, CHAT_FALLBACK, DISCLAIMER } from './mock/ai.js';
 import { USER_RULES, USER_TRIGGERS, metricaOf, operadorOf } from './mock/userAlerts.js';
 import { NEWS } from './mock/news.js';
+import { USERS } from './mock/users.js';
 import { computeIndicators, lastDefined } from '../lib/indicators.js';
 
 const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms));
@@ -17,6 +18,8 @@ const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms));
 /* ---------- estado mutável da sessão (substituído pelo banco no backend) ---------- */
 let watchlist = [...WATCHLIST];
 let operations = [...OPERATIONS];
+let users = [...USERS];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 let readAlerts = new Set();
 let userRules = [...USER_RULES];
 let userTriggers = [...USER_TRIGGERS];
@@ -96,9 +99,26 @@ export const api = {
       usuario: { id: 'u1', nome: email.split('@')[0].replace(/^./, (c) => c.toUpperCase()), email },
     };
   },
-  async register({ nome, email }) {
+  async register({ nome, email, senha }) {
     await delay(620);
-    return { token: 'mock.jwt.token', usuario: { id: 'u1', nome, email } };
+    if (!nome?.trim()) throw new Error('Informe seu nome.');
+    const emailNorm = (email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(emailNorm)) throw new Error('Informe um e-mail válido.');
+    if (!senha || senha.length < 8) throw new Error('A senha precisa ter ao menos 8 caracteres.');
+    if (users.some((u) => u.email.toLowerCase() === emailNorm)) {
+      const err = new Error('Este e-mail já está cadastrado.');
+      err.code = 'EMAIL_EXISTS';
+      throw err;
+    }
+    const novo = { id: `u${Date.now()}`, nome: nome.trim(), email: emailNorm, criado_em: new Date().toISOString().slice(0, 10) };
+    users = [...users, novo];
+    return { token: 'mock.jwt.token', usuario: { id: novo.id, nome: novo.nome, email: novo.email } };
+  },
+  async recoverPassword({ email }) {
+    await delay(520);
+    if (!EMAIL_RE.test((email || '').trim())) throw new Error('Informe um e-mail válido.');
+    // Resposta sempre genérica — não revela se o e-mail está cadastrado.
+    return { ok: true };
   },
   async updateProfile({ nome, email }) {
     await delay(420);

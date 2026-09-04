@@ -3,6 +3,7 @@ import { useAuthStore } from './store/index.js';
 import AppShell from './components/AppShell.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
+import RecoverPassword from './pages/RecoverPassword.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import AssetDetail from './pages/AssetDetail.jsx';
 import Portfolio from './pages/Portfolio.jsx';
@@ -26,6 +27,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/cadastro" element={<Register />} />
+      <Route path="/recuperar-senha" element={<RecoverPassword />} />
       <Route path="/" element={<Private><Dashboard /></Private>} />
       <Route path="/ativo/:ticker" element={<Private><AssetDetail /></Private>} />
       <Route path="/portfolio" element={<Private><Portfolio /></Private>} />
