@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-base text-fg-0 font-sans antialiased;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  a {
+    @apply text-accent no-underline;
+  }
+  a:hover {
+    @apply text-accent-hover;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-main rounded-full;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid #58a6ff;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-border-soft rounded-xl shadow-sm;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .input {
+    @apply w-full rounded-sm border border-border-main bg-elevated px-3 py-2 text-sm text-fg-0
+           placeholder:text-fg-3 focus:border-accent focus:outline-none;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-fg-2;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm px-4 py-2 text-sm font-semibold
+           transition-colors disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-[#0d1117] hover:bg-accent-hover;
+  }
+  .btn-ghost {
+    @apply btn border border-border-main bg-transparent text-fg-1 hover:bg-muted;
+  }
+  .num {
+    @apply font-mono tabular-nums;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.24s ease both;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

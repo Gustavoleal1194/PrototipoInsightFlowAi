@@ -1,0 +1,256 @@
+import { useParams, Link } from 'react-router-dom';
+import { ArrowLeft, Plus, Sparkles } from 'lucide-react';
+import { useAsset, useHistory, useIndicators, useSignals, useScore, useAnalysis, useWatchlist, useWatchlistMutations } from '../hooks/queries.js';
+import { useUiStore } from '../store/index.js';
+import { PERIODS } from '../api/mock/assets.js';
+import { Card, Pill, Skeleton, Empty } from '../components/ui.jsx';
+import PriceChart from '../components/PriceChart.jsx';
+import { RsiChart, MacdChart } from '../components/Charts.jsx';
+import Disclaimer from '../components/Disclaimer.jsx';
+import { fmtNum, fmtPct, fmtCompact, sinceNow, trendClass } from '../lib/format.js';
+
+const OVERLAYS = [
+  { k: 'sma20', label: 'SMA 20', color: '#58a6ff' },
+  { k: 'sma50', label: 'SMA 50', color: '#d29922' },
+  { k: 'sma200', label: 'SMA 200', color: '#d2a8ff' },
+  { k: 'bollinger', label: 'Bollinger', color: '#484f58' },
+];
+
+export default function AssetDetail() {
+  const { ticker } = useParams();
+  const { periodo, setPeriodo, overlays, toggleOverlay } = useUiStore();
+  const { data: asset } = useAsset(ticker);
+  const { data: hist, isLoading: loadingHist } = useHistory(ticker, periodo);
+  const { data: snapshot } = useIndicators(ticker);
+  const { data: signals } = useSignals({ ticker, apenasAtivos: false });
+  const { data: score } = useScore(ticker);
+  const { data: analysis, isLoading: loadingAI } = useAnalysis(ticker);
+  const { data: watchlist } = useWatchlist();
+  const { add, remove } = useWatchlistMutations();
+  const naWatchlist = (watchlist ?? []).some((w) => w.ticker === ticker);
+
+  const cot = asset?.cotacao;
+
+  return (
+    <div className="mx-auto grid max-w-[1400px] gap-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link to="/" className="mb-2 inline-flex items-center gap-1.5 text-xs text-fg-2 hover:text-fg-0">
+            <ArrowLeft size={13} /> Voltar ao dashboard
+          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="num text-2xl font-bold">{ticker}</h2>
+            {asset && (
+              <>
+                <Pill tone={asset.tipo === 'CRIPTO' ? 'purple' : 'blue'}>{asset.tipo}</Pill>
+                <span className="text-sm text-fg-2">{asset.nome}</span>
+              </>
+            )}
+          </div>
+          {asset && (
+            <p className="mt-1 text-xs text-fg-3">
+              {asset.setor} · {asset.moeda} · fonte {asset.fonte}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-end gap-6">
+          <div className="text-right">
+            {cot ? (
+              <>
+                <div className="num text-2xl font-bold leading-none">{fmtNum(cot.preco)}</div>
+                <div className={`num mt-1 text-sm ${trendClass(cot.variacao_pct)}`}>
+                  {fmtNum(cot.variacao)} ({fmtPct(cot.variacao_pct)}) hoje
+                </div>
+              </>
+            ) : (
+              <Skeleton className="h-8 w-28" />
+            )}
+          </div>
+          <button
+            className={naWatchlist ? 'btn-ghost' : 'btn-primary'}
+            onClick={() => (naWatchlist ? remove.mutate(ticker) : add.mutate(ticker))}
+          >
+            {naWatchlist ? 'Na watchlist' : <><Plus size={15} /> Watchlist</>}
+          </button>
+        </div>
+      </header>
+
+      <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
+        <div className="grid content-start gap-6">
+          <Card
+            bodyClass="p-2 pt-0"
+            title="Histórico OHLCV"
+            action={
+              <div className="flex items-center gap-3">
+                <div className="flex gap-0.5 rounded-sm bg-elevated p-0.5">
+                  {PERIODS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setPeriodo(p.id)}
+                      className={`num rounded-[6px] px-2 py-1 text-xs font-semibold ${
+                        periodo === p.id ? 'bg-muted text-fg-0' : 'text-fg-3 hover:text-fg-1'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            }
+          >
+            <div className="flex flex-wrap gap-3 px-2 py-2.5">
+              {OVERLAYS.map((o) => (
+                <label key={o.k} className="flex cursor-pointer items-center gap-1.5 text-xs text-fg-2">
+                  <input
+                    type="checkbox"
+                    checked={!!overlays[o.k]}
+                    onChange={() => toggleOverlay(o.k)}
+                    className="h-3.5 w-3.5 accent-[#58a6ff]"
+                  />
+                  <span className="h-0.5 w-4 rounded-full" style={{ background: o.color }} />
+                  {o.label}
+                </label>
+              ))}
+            </div>
+            {loadingHist ? (
+              <Skeleton className="mx-2 h-[380px]" />
+            ) : (
+              <PriceChart candles={hist.candles} indicators={hist.indicators} moeda={asset?.moeda ?? 'BRL'} />
+            )}
+          </Card>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card title="RSI (14)" bodyClass="p-2">
+              {hist ? <RsiChart candles={hist.candles} values={hist.indicators.rsi14} /> : <Skeleton className="h-[130px]" />}
+            </Card>
+            <Card title="MACD (12, 26, 9)" bodyClass="p-2">
+              {hist ? <MacdChart candles={hist.candles} macd={hist.indicators.macd} /> : <Skeleton className="h-[130px]" />}
+            </Card>
+          </div>
+
+          <Card title="Sinais e contexto histórico" bodyClass="p-0">
+            {(signals ?? []).length === 0 ? (
+              <Empty>Nenhum sinal registrado para este ativo.</Empty>
+            ) : (
+              <ul>
+                {signals.map((s) => (
+                  <li key={s.id} className="border-b border-border-soft p-4 last:border-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Pill tone={s.data_desativacao ? 'slate' : s.regra.tom}>{s.regra.nome}</Pill>
+                      <span className="text-xs text-fg-3">
+                        {s.data_desativacao ? `encerrado há ${sinceNow(s.data_desativacao)}` : `ativo há ${sinceNow(s.data_ativacao)}`}
+                      </span>
+                      <span className="ml-auto text-xs text-fg-3">peso {fmtNum(s.regra.peso, 2)}</span>
+                    </div>
+                    <p className="mt-2">{s.regra.descricao}</p>
+                    <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+                      {Object.entries(s.contexto).map(([k, v]) => (
+                        <span key={k} className="text-xs text-fg-2">
+                          {k} <span className="num font-semibold text-fg-0">{fmtNum(v)}</span>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 rounded-sm border border-border-soft bg-elevated p-3 sm:grid-cols-4">
+                      {[
+                        ['Ocorrências (24m)', s.backtest.ocorrencias],
+                        ['Retorno médio 5p', fmtPct(s.backtest.ret5)],
+                        ['Retorno médio 20p', fmtPct(s.backtest.ret20)],
+                        ['Retorno médio 60p', fmtPct(s.backtest.ret60)],
+                      ].map(([label, val]) => (
+                        <div key={label}>
+                          <div className="text-[11px] uppercase tracking-wider text-fg-3">{label}</div>
+                          <div className="num text-sm font-bold text-fg-0">{val}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+
+        <div className="grid content-start gap-6">
+          <Card title="Score de oportunidade">
+            {score ? (
+              <div className="flex items-center gap-4">
+                <div className="num text-4xl font-extrabold text-fg-0">{score.score}</div>
+                <div className="flex-1">
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${score.score}%` }} />
+                  </div>
+                  <p className="mt-2 text-xs">
+                    Soma ponderada dos {score.sinais} sinais ativos. Indicador técnico agregado, não recomendação.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <Skeleton className="h-12" />
+            )}
+          </Card>
+
+          <Card title="Análise por IA" action={<Sparkles size={15} className="text-purple" />}>
+            {loadingAI ? (
+              <div className="grid gap-2">
+                <Skeleton /> <Skeleton /> <Skeleton /> <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : (
+              <>
+                <p className="text-fg-1">{analysis?.texto}</p>
+                <p className="mt-3 text-xs text-fg-3">
+                  provedor {analysis?.provedor} · modelo {analysis?.modelo} · prompt {analysis?.prompt_versao}
+                </p>
+                <Disclaimer className="mt-3" />
+              </>
+            )}
+          </Card>
+
+          <Card title="Indicadores calculados" bodyClass="p-0">
+            {snapshot ? (
+              <dl>
+                {Object.entries(snapshot).map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between border-b border-border-soft px-4 py-2.5 last:border-0">
+                    <dt className="text-sm text-fg-2">{k}</dt>
+                    <dd className="num text-sm font-semibold text-fg-0">{v == null ? '—' : fmtNum(v, k === 'Volume relativo' ? 2 : 2)}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <div className="grid gap-2 p-4">
+                <Skeleton /> <Skeleton /> <Skeleton />
+              </div>
+            )}
+          </Card>
+
+          <Card title="Cotação">
+            {cot ? (
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-xs text-fg-3">Volume do dia</dt>
+                  <dd className="num font-semibold">{fmtCompact(cot.volume)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-fg-3">Atualizado</dt>
+                  <dd className="num font-semibold">
+                    {new Date(cot.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-fg-3">Cache</dt>
+                  <dd className="font-semibold">60 s</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-fg-3">Reavaliação de sinais</dt>
+                  <dd className="font-semibold">{asset?.tipo === 'CRIPTO' ? '5 min' : '15 min'}</dd>
+                </div>
+              </dl>
+            ) : (
+              <Skeleton className="h-16" />
+            )}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
