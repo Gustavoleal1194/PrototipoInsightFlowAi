@@ -339,7 +339,7 @@ export default function Dashboard() {
 
       {(watchlist ?? []).length > 0 && <MarketChartCard watchlist={watchlist} />}
 
-      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+      <div className="grid items-start gap-6 xl:grid-cols-[1.6fr_1fr]">
         <Card
           title={<SectionTitle icon={Wallet}>Watchlist</SectionTitle>}
           action={<Link to="/busca" className="text-xs font-semibold">Adicionar ativo</Link>}
