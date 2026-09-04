@@ -9,6 +9,7 @@ import { RULES, SIGNALS, BACKTESTS, ruleOf } from './mock/signals.js';
 import { OPERATIONS, EQUITY_CURVE, WATCHLIST } from './mock/portfolio.js';
 import { ASSET_ANALYSIS, DAILY_SUMMARY, CHAT_ANSWERS, CHAT_FALLBACK, DISCLAIMER } from './mock/ai.js';
 import { USER_RULES, USER_TRIGGERS, metricaOf, operadorOf } from './mock/userAlerts.js';
+import { NEWS } from './mock/news.js';
 import { computeIndicators, lastDefined } from '../lib/indicators.js';
 
 const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms));
@@ -19,6 +20,12 @@ let operations = [...OPERATIONS];
 let readAlerts = new Set();
 let userRules = [...USER_RULES];
 let userTriggers = [...USER_TRIGGERS];
+const hAgo = (n) => new Date(Date.now() - n * 3600_000).toISOString();
+let sessions = [
+  { id: 'se1', dispositivo: 'Chrome · Windows', local: 'São Paulo, BR', atual: true, ultimo_acesso: new Date().toISOString() },
+  { id: 'se2', dispositivo: 'App · iPhone', local: 'São Paulo, BR', atual: false, ultimo_acesso: hAgo(6) },
+  { id: 'se3', dispositivo: 'Edge · Windows', local: 'Campinas, BR', atual: false, ultimo_acesso: hAgo(72) },
+];
 
 /** Avalia uma regra do usuário contra os indicadores vigentes do ativo. */
 const evaluateRule = (rule) => {
@@ -93,6 +100,32 @@ export const api = {
     await delay(620);
     return { token: 'mock.jwt.token', usuario: { id: 'u1', nome, email } };
   },
+  async updateProfile({ nome, email }) {
+    await delay(420);
+    if (!nome?.trim()) throw new Error('Informe seu nome.');
+    if (!email?.includes('@')) throw new Error('Informe um e-mail válido.');
+    return { nome: nome.trim(), email: email.trim() };
+  },
+  async changePassword({ atual, nova }) {
+    await delay(480);
+    if (!atual) throw new Error('Informe sua senha atual.');
+    if (!nova || nova.length < 8) throw new Error('A nova senha precisa ter ao menos 8 caracteres.');
+    return { ok: true };
+  },
+  async getSessions() {
+    await delay(220);
+    return [...sessions].sort((a, b) => Number(b.atual) - Number(a.atual));
+  },
+  async revokeSession(id) {
+    await delay(260);
+    sessions = sessions.filter((s) => s.id !== id);
+    return { ok: true };
+  },
+  async revokeOtherSessions() {
+    await delay(340);
+    sessions = sessions.filter((s) => s.atual);
+    return { ok: true };
+  },
 
   /* ----- ativos (RF-04, RF-05, RF-06) ----- */
   async searchAssets(termo) {
@@ -166,6 +199,45 @@ export const api = {
     const soma = ativos.reduce((a, s) => a + (ruleOf(s.regra_id)?.peso ?? 0), 0);
     return { score: +Math.min(soma * 100, 100).toFixed(0), sinais: ativos.length };
   },
+  async getTopMovers(limit = 5) {
+    await delay(260);
+    const quotes = ASSETS.map((a) => ({ ...quoteOf(a.ticker), nome: a.nome, tipo: a.tipo }));
+    return {
+      altas: [...quotes].sort((a, b) => b.variacao_pct - a.variacao_pct).slice(0, limit),
+      baixas: [...quotes].sort((a, b) => a.variacao_pct - b.variacao_pct).slice(0, limit),
+    };
+  },
+  /** Rankings de mercado (RF-05 a RF-08) — altas, baixas, volume relativo e sinais, no estilo dos rankings do investidor10. */
+  async getRankings(limit = 6) {
+    await delay(320);
+    const quotes = ASSETS.map((a) => ({ ...quoteOf(a.ticker), nome: a.nome, tipo: a.tipo }));
+    const comIndicadores = ASSETS.map((a) => {
+      const ind = computeIndicators(generateCandles(a.ticker));
+      return { ticker: a.ticker, nome: a.nome, tipo: a.tipo, volRel: lastDefined(ind.volRel) ?? 0 };
+    });
+    const comSinais = ASSETS.map((a) => ({
+      ticker: a.ticker,
+      nome: a.nome,
+      tipo: a.tipo,
+      sinais: SIGNALS.filter((s) => s.ticker === a.ticker && !s.data_desativacao).length,
+    }));
+    return {
+      altas: [...quotes].sort((a, b) => b.variacao_pct - a.variacao_pct).slice(0, limit),
+      baixas: [...quotes].sort((a, b) => a.variacao_pct - b.variacao_pct).slice(0, limit),
+      volume: [...comIndicadores].sort((a, b) => b.volRel - a.volRel).slice(0, limit),
+      sinais: comSinais
+        .filter((s) => s.sinais > 0)
+        .sort((a, b) => b.sinais - a.sinais)
+        .slice(0, limit),
+    };
+  },
+  /** Notícias de mercado (opcionalmente filtradas por ativo). */
+  async getNews(ticker, limit = 8) {
+    await delay(220);
+    return NEWS.filter((n) => !ticker || n.ticker === ticker)
+      .sort((a, b) => b.data.localeCompare(a.data))
+      .slice(0, limit);
+  },
 
   /* ----- watchlist (RF-03, RN-08) ----- */
   async getWatchlist() {
@@ -203,6 +275,11 @@ export const api = {
     const nova = { ...op, id: `o${Date.now()}`, criado_em: new Date().toISOString() };
     operations = [...operations, nova];
     return nova;
+  },
+  async deleteOperation(id) {
+    await delay(260);
+    operations = operations.filter((o) => o.id !== id);
+    return { ok: true };
   },
   async getPositions() {
     await delay(320);
@@ -288,6 +365,11 @@ export const api = {
   async markAlertRead(id) {
     await delay(120);
     readAlerts = new Set([...readAlerts, id]);
+    return { ok: true };
+  },
+  async markAllAlertsRead() {
+    await delay(220);
+    readAlerts = new Set([...readAlerts, ...SIGNALS.map((s) => s.id)]);
     return { ok: true };
   },
 

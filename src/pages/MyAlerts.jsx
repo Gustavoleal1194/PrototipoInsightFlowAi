@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BellRing, Check, Plus, Trash2 } from 'lucide-react';
+import { BellRing, Check, Copy, ListChecks, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { ASSETS } from '../api/mock/assets.js';
 import { METRICAS, OPERADORES, CANAIS, FREQUENCIAS, metricaOf, operadorOf } from '../api/mock/userAlerts.js';
 import { useUserRules, useUserTriggers, useUserRuleMutations } from '../hooks/queries.js';
-import { Card, Pill, Skeleton, Empty } from '../components/ui.jsx';
+import { Card, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
 import { fmtNum, sinceNow } from '../lib/format.js';
 
 const VAZIO = { ticker: 'BTC', metrica: 'PRECO', operador: 'GTE', valor: '', canais: ['PUSH'], frequencia: 'UMA_VEZ', nota: '' };
@@ -27,6 +27,19 @@ export default function MyAlerts() {
     create.mutate({ ...form, valor: Number(form.valor) }, { onSuccess: () => setForm({ ...VAZIO, ticker: form.ticker }) });
   };
 
+  const duplicar = (r) => {
+    setForm({
+      ticker: r.ticker,
+      metrica: r.metrica,
+      operador: r.operador,
+      valor: String(r.valor),
+      canais: [...r.canais],
+      frequencia: r.frequencia,
+      nota: r.nota ?? '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const ativos = (regras ?? []).filter((r) => r.ativa);
   const atingidas = ativos.filter((r) => r.avaliacao.atingido);
 
@@ -41,7 +54,7 @@ export default function MyAlerts() {
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1.4fr] xl:items-start">
-        <Card title="Nova regra">
+        <Card title={<SectionTitle icon={SlidersHorizontal}>Nova regra</SectionTitle>}>
           <form className="grid gap-4" onSubmit={submit}>
             <div>
               <label className="label" htmlFor="ua-ativo">Ativo</label>
@@ -136,7 +149,7 @@ export default function MyAlerts() {
         </Card>
 
         <div className="grid gap-6">
-          <Card title="Regras" bodyClass="p-0">
+          <Card title={<SectionTitle icon={ListChecks}>Regras</SectionTitle>} bodyClass="p-0">
             {isLoading ? (
               <div className="grid gap-3 p-4">
                 {[0, 1, 2].map((i) => (
@@ -167,6 +180,13 @@ export default function MyAlerts() {
                           {r.ativa ? 'Pausar' : 'Ativar'}
                         </button>
                         <button
+                          onClick={() => duplicar(r)}
+                          title="Duplicar regra"
+                          className="rounded-sm p-1.5 text-fg-3 hover:bg-muted hover:text-accent"
+                        >
+                          <Copy size={15} />
+                        </button>
+                        <button
                           onClick={() => remove.mutate(r.id)}
                           title="Excluir regra"
                           className="rounded-sm p-1.5 text-fg-3 hover:bg-muted hover:text-down"
@@ -192,7 +212,7 @@ export default function MyAlerts() {
                         className="h-full rounded-full transition-all"
                         style={{
                           width: `${fmtNum(Math.min(r.avaliacao.progresso, 100), 0).replace(',', '.')}%`,
-                          background: r.avaliacao.atingido ? '#3fb950' : '#58a6ff',
+                          background: r.avaliacao.atingido ? 'var(--up)' : 'var(--accent)',
                         }}
                       />
                     </div>
@@ -204,7 +224,10 @@ export default function MyAlerts() {
             )}
           </Card>
 
-          <Card title="Disparos recentes" action={<BellRing size={15} className="text-accent" />} bodyClass="p-0">
+          <Card
+            title={<SectionTitle icon={BellRing}>Disparos recentes</SectionTitle>}
+            bodyClass="p-0"
+          >
             {(disparos ?? []).length === 0 ? (
               <Empty>Nenhum disparo registrado.</Empty>
             ) : (

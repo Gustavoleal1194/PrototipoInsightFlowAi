@@ -1,11 +1,176 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, BellOff, Sparkles, Trash2 } from 'lucide-react';
-import { useWatchlist, useSignals, usePortfolio, useDailySummary, useWatchlistMutations } from '../hooks/queries.js';
-import { generateCandles } from '../api/mock/assets.js';
-import { Card, Kpi, Pill, Skeleton, Empty } from '../components/ui.jsx';
-import { Sparkline } from '../components/Charts.jsx';
+import {
+  Bell,
+  BellOff,
+  Sparkles,
+  Trash2,
+  Wallet,
+  TrendingUp,
+  Activity,
+  Radar,
+  LineChart as LineChartIcon,
+  Newspaper,
+} from 'lucide-react';
+import {
+  useWatchlist,
+  useSignals,
+  usePortfolio,
+  useDailySummary,
+  useWatchlistMutations,
+  useHistory,
+  useTopMovers,
+  useNews,
+} from '../hooks/queries.js';
+import { generateCandles, PERIODS } from '../api/mock/assets.js';
+import { Card, Kpi, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
+import { Sparkline, RsiChart } from '../components/Charts.jsx';
+import PriceChart from '../components/PriceChart.jsx';
 import Disclaimer from '../components/Disclaimer.jsx';
 import { fmtBRL, fmtNum, fmtPct, sinceNow, trendClass } from '../lib/format.js';
+
+function MarketChartCard({ watchlist }) {
+  const [ticker, setTicker] = useState('');
+  const [periodo, setPeriodo] = useState('3m');
+  const ativo = ticker || watchlist?.[0]?.ticker;
+  const item = (watchlist ?? []).find((w) => w.ticker === ativo);
+  const { data: hist, isLoading } = useHistory(ativo, periodo);
+
+  if (!ativo) return null;
+
+  return (
+    <Card
+      title={<SectionTitle icon={LineChartIcon}>Gráfico do ativo</SectionTitle>}
+      bodyClass="p-2 pt-0"
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="input w-24 py-1.5 text-xs sm:w-28"
+            value={ativo}
+            onChange={(e) => setTicker(e.target.value)}
+          >
+            {(watchlist ?? []).map((w) => (
+              <option key={w.ticker} value={w.ticker}>
+                {w.ticker}
+              </option>
+            ))}
+          </select>
+          <div className="flex flex-wrap gap-0.5 rounded-sm bg-elevated p-0.5">
+            {PERIODS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPeriodo(p.id)}
+                className={`num rounded-[6px] px-2 py-1 text-xs font-semibold ${
+                  periodo === p.id ? 'bg-muted text-fg-0 shadow-sm' : 'text-fg-3 hover:text-fg-1'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-2.5">
+        <div className="flex items-center gap-3">
+          <span className="num text-lg font-bold text-fg-0">{ativo}</span>
+          {item && (
+            <>
+              <span className="num text-sm text-fg-2">{fmtNum(item.cotacao.preco)}</span>
+              <span className={`num text-sm font-semibold ${trendClass(item.cotacao.variacao_pct)}`}>
+                {fmtPct(item.cotacao.variacao_pct)}
+              </span>
+            </>
+          )}
+        </div>
+        <Link to={`/ativo/${ativo}`} className="text-xs font-semibold text-accent">
+          Ver análise completa →
+        </Link>
+      </div>
+      {isLoading || !hist ? (
+        <Skeleton className="mx-2 h-[300px]" />
+      ) : (
+        <>
+          <PriceChart candles={hist.candles} indicators={hist.indicators} moeda={item?.moeda ?? 'BRL'} height={280} />
+          <div className="mt-2 border-t border-border-soft px-2 pt-2">
+            <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-fg-3">RSI (14)</div>
+            <RsiChart candles={hist.candles} values={hist.indicators.rsi14} height={90} />
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function TopMoversCard() {
+  const { data } = useTopMovers();
+  return (
+    <Card title={<SectionTitle icon={TrendingUp}>Maiores altas e baixas</SectionTitle>} bodyClass="p-0">
+      {!data ? (
+        <div className="grid gap-2 p-4">
+          <Skeleton /> <Skeleton /> <Skeleton />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 divide-x divide-border-soft">
+          <div>
+            <div className="px-4 pt-3 text-[11px] font-semibold uppercase tracking-wider text-up">Altas</div>
+            <ul>
+              {data.altas.map((q) => (
+                <li key={q.ticker}>
+                  <Link to={`/ativo/${q.ticker}`} className="flex items-center justify-between px-4 py-2 hover:bg-elevated">
+                    <span className="num text-sm font-bold text-fg-0">{q.ticker}</span>
+                    <span className="num text-sm font-semibold text-up">{fmtPct(q.variacao_pct)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <div className="px-4 pt-3 text-[11px] font-semibold uppercase tracking-wider text-down">Baixas</div>
+            <ul>
+              {data.baixas.map((q) => (
+                <li key={q.ticker}>
+                  <Link to={`/ativo/${q.ticker}`} className="flex items-center justify-between px-4 py-2 hover:bg-elevated">
+                    <span className="num text-sm font-bold text-fg-0">{q.ticker}</span>
+                    <span className="num text-sm font-semibold text-down">{fmtPct(q.variacao_pct)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function NewsCard() {
+  const { data: news } = useNews();
+  return (
+    <Card title={<SectionTitle icon={Newspaper}>Notícias do mercado</SectionTitle>} bodyClass="p-0">
+      {!news ? (
+        <div className="grid gap-2 p-4">
+          <Skeleton /> <Skeleton /> <Skeleton className="h-4 w-2/3" />
+        </div>
+      ) : news.length === 0 ? (
+        <Empty>Nenhuma notícia no momento.</Empty>
+      ) : (
+        <ul>
+          {news.slice(0, 5).map((n) => (
+            <li key={n.id} className="border-b border-border-soft px-4 py-2.5 last:border-0">
+              <Link to={`/ativo/${n.ticker}`} className="block hover:text-accent">
+                <p className="text-sm text-fg-1">{n.titulo}</p>
+                <p className="mt-1 text-xs text-fg-3">
+                  <span className="num font-semibold">{n.ticker}</span> · {n.fonte} · há {sinceNow(n.data)}
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
 
 export default function Dashboard() {
   const { data: watchlist, isLoading } = useWatchlist();
@@ -25,27 +190,45 @@ export default function Dashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
+          icon={Wallet}
           label="Patrimônio simulado"
           value={portfolio ? fmtBRL(portfolio.valor_total) : '—'}
           hint={portfolio ? `Custo ${fmtBRL(portfolio.custo_total)}` : ''}
         />
         <Kpi
+          icon={TrendingUp}
+          iconTone={portfolio?.resultado >= 0 ? 'up' : 'down'}
           label="Resultado não realizado"
           value={portfolio ? fmtBRL(portfolio.resultado) : '—'}
           tone={portfolio ? trendClass(portfolio.resultado) : ''}
           hint={portfolio ? fmtPct(portfolio.resultado_pct) : ''}
         />
         <Kpi
+          icon={Activity}
+          iconTone={portfolio?.variacao_dia_pct >= 0 ? 'up' : 'down'}
           label="Variação do dia"
           value={portfolio ? fmtPct(portfolio.variacao_dia_pct) : '—'}
           tone={portfolio ? trendClass(portfolio.variacao_dia_pct) : ''}
           hint="Ibovespa +0,31% · CDI +0,04%"
         />
-        <Kpi label="Sinais ativos" value={signals?.length ?? '—'} hint="Reavaliação a cada 15 min no pregão" />
+        <Kpi
+          icon={Radar}
+          iconTone="amber"
+          live={(signals?.length ?? 0) > 0}
+          label="Sinais ativos"
+          value={signals?.length ?? '—'}
+          hint="Reavaliação a cada 15 min no pregão"
+        />
       </div>
 
+      {(watchlist ?? []).length > 0 && <MarketChartCard watchlist={watchlist} />}
+
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <Card title="Watchlist" action={<Link to="/busca" className="text-xs font-semibold">Adicionar ativo</Link>} bodyClass="p-0">
+        <Card
+          title={<SectionTitle icon={Wallet}>Watchlist</SectionTitle>}
+          action={<Link to="/busca" className="text-xs font-semibold">Adicionar ativo</Link>}
+          bodyClass="p-0"
+        >
           {isLoading ? (
             <div className="grid gap-3 p-4">
               {[0, 1, 2, 3].map((i) => (
@@ -55,7 +238,8 @@ export default function Dashboard() {
           ) : (watchlist ?? []).length === 0 ? (
             <Empty>Nenhum ativo na watchlist.</Empty>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="table-zebra w-full min-w-[520px] text-sm">
               <thead className="text-xs uppercase tracking-wider text-fg-3">
                 <tr className="border-b border-border-soft">
                   <th className="px-4 py-2 text-left font-medium">Ativo</th>
@@ -108,6 +292,7 @@ export default function Dashboard() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
 
@@ -128,7 +313,7 @@ export default function Dashboard() {
             )}
           </Card>
 
-          <Card title="Sinais ativos" bodyClass="p-0">
+          <Card title={<SectionTitle icon={Radar} tone="amber">Sinais ativos</SectionTitle>} bodyClass="p-0">
             {(signals ?? []).length === 0 ? (
               <Empty>Nenhum sinal ativo.</Empty>
             ) : (
@@ -138,6 +323,7 @@ export default function Dashboard() {
                     <Link to={`/ativo/${s.ticker}`} className="flex items-start gap-3 px-4 py-3 hover:bg-elevated">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
+                          <span className="signal-ping shrink-0" />
                           <span className="num text-sm font-bold text-fg-0">{s.ticker}</span>
                           <Pill tone={s.regra.tom}>{s.regra.nome}</Pill>
                         </div>
@@ -153,6 +339,10 @@ export default function Dashboard() {
               </ul>
             )}
           </Card>
+
+          <TopMoversCard />
+
+          <NewsCard />
         </div>
       </div>
     </div>

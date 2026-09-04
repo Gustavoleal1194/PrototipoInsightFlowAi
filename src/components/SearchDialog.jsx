@@ -33,7 +33,7 @@ export default function SearchDialog() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 pt-24" onClick={() => setSearchOpen(false)}>
-      <div className="fade-in w-full max-w-xl overflow-hidden rounded-xl border border-border-main bg-surface shadow-md" onClick={(e) => e.stopPropagation()}>
+      <div className="fade-in w-full max-w-xl overflow-hidden rounded-xl border border-border-main bg-surface shadow-lg" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-border-soft px-4 py-3">
           <Search size={16} className="text-fg-3" />
           <input

@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus } from 'lucide-react';
-import { usePositions, usePortfolio, useDistribution, useOperations } from '../hooks/queries.js';
-import { Card, Kpi, Pill, Skeleton, Empty } from '../components/ui.jsx';
-import { BenchmarkChart } from '../components/Charts.jsx';
+import { Plus, Wallet, Coins, TrendingUp, Scale, ListOrdered, PieChart as PieChartIcon, Receipt, Trash2, Download } from 'lucide-react';
+import { usePositions, usePortfolio, useDistribution, useOperations, useDeleteOperation } from '../hooks/queries.js';
+import { Card, Kpi, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
+import { BenchmarkChart, DonutChart } from '../components/Charts.jsx';
 import OperationModal from '../components/OperationModal.jsx';
 import { USD_BRL } from '../api/mock/assets.js';
 import { fmtBRL, fmtNum, fmtPct, fmtDate, trendClass } from '../lib/format.js';
 
-const BAR_COLORS = ['#58a6ff', '#7dfda1', '#d2a8ff', '#d29922', '#8b949e'];
+const BAR_COLORS = [
+  'var(--chart-sma20)',
+  'var(--chart-bench-portfolio)',
+  'var(--chart-sma200)',
+  'var(--chart-sma50)',
+  'var(--chart-axis)',
+];
+
+const TIPOS_POSICAO = ['TODAS', 'ACAO', 'FII', 'ETF', 'CRIPTO'];
 
 function DistributionList({ titulo, itens }) {
   return (
@@ -31,12 +39,57 @@ function DistributionList({ titulo, itens }) {
   );
 }
 
+function DistribuicaoPorClasse({ itens }) {
+  return (
+    <div>
+      <h5 className="mb-2 text-xs font-medium uppercase tracking-wider text-fg-3">Por classe de ativo</h5>
+      <div className="grid grid-cols-[auto_1fr] items-center gap-4">
+        <DonutChart data={itens} height={140} />
+        <ul className="grid gap-1.5">
+          {itens.map((d, i) => (
+            <li key={d.nome} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2 text-fg-1">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: BAR_COLORS[i % BAR_COLORS.length] }}
+                />
+                {d.nome}
+              </span>
+              <span className="num text-fg-2">{fmtNum(d.pct, 1)}%</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export default function Portfolio() {
   const [modal, setModal] = useState(false);
+  const [tipoFiltro, setTipoFiltro] = useState('TODAS');
   const { data: pos, isLoading } = usePositions();
   const { data: resumo } = usePortfolio();
   const { data: dist } = useDistribution();
   const { data: ops } = useOperations();
+  const deleteOp = useDeleteOperation();
+
+  const posFiltrado = (pos ?? []).filter((p) => tipoFiltro === 'TODAS' || p.tipo === tipoFiltro);
+
+  const exportarOperacoesCsv = () => {
+    const linhas = [
+      ['Tipo', 'Ativo', 'Quantidade', 'Preço unitário', 'Total', 'Data'].join(','),
+      ...(ops ?? []).map((o) =>
+        [o.tipo, o.ticker, o.quantidade, o.preco_unitario, (o.quantidade * o.preco_unitario).toFixed(2), o.data].join(','),
+      ),
+    ];
+    const blob = new Blob([linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'insightflow-operacoes.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="mx-auto grid max-w-[1400px] gap-6">
@@ -52,18 +105,23 @@ export default function Portfolio() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
+          icon={Wallet}
           label="Valor de mercado"
           value={resumo ? fmtBRL(resumo.valor_total) : '—'}
           hint={resumo ? `${pos?.length ?? 0} posições · posições em USD convertidas a ${fmtNum(USD_BRL)}` : ''}
         />
-        <Kpi label="Custo total" value={resumo ? fmtBRL(resumo.custo_total) : '—'} />
+        <Kpi icon={Coins} iconTone="amber" label="Custo total" value={resumo ? fmtBRL(resumo.custo_total) : '—'} />
         <Kpi
+          icon={TrendingUp}
+          iconTone={resumo?.resultado >= 0 ? 'up' : 'down'}
           label="Resultado"
           value={resumo ? fmtBRL(resumo.resultado) : '—'}
           tone={resumo ? trendClass(resumo.resultado) : ''}
           hint={resumo ? fmtPct(resumo.resultado_pct) : ''}
         />
         <Kpi
+          icon={Scale}
+          iconTone="purple"
           label="Contra benchmarks"
           value={resumo ? fmtPct(resumo.resultado_pct - resumo.benchmarks.ibovespa) : '—'}
           tone={resumo ? trendClass(resumo.resultado_pct - resumo.benchmarks.ibovespa) : ''}
@@ -72,13 +130,13 @@ export default function Portfolio() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <Card title="Carteira vs. benchmarks (base 100)" bodyClass="p-3">
+        <Card title={<SectionTitle icon={TrendingUp}>Carteira vs. benchmarks (base 100)</SectionTitle>} bodyClass="p-3">
           {resumo ? <BenchmarkChart data={resumo.curva} /> : <Skeleton className="h-[240px]" />}
         </Card>
-        <Card title="Distribuição">
+        <Card title={<SectionTitle icon={PieChartIcon} tone="purple">Distribuição</SectionTitle>}>
           {dist ? (
             <div className="grid gap-5">
-              <DistributionList titulo="Por classe de ativo" itens={dist.classe} />
+              <DistribuicaoPorClasse itens={dist.classe} />
               <DistributionList titulo="Por setor" itens={dist.setor} />
               <DistributionList titulo="Por moeda" itens={dist.moeda} />
             </div>
@@ -90,18 +148,36 @@ export default function Portfolio() {
         </Card>
       </div>
 
-      <Card title="Posições" bodyClass="p-0">
+      <Card
+        title={<SectionTitle icon={ListOrdered}>Posições</SectionTitle>}
+        action={
+          <div className="flex flex-wrap gap-0.5 rounded-sm bg-elevated p-0.5">
+            {TIPOS_POSICAO.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTipoFiltro(t)}
+                className={`rounded-[6px] px-2.5 py-1 text-xs font-semibold ${
+                  tipoFiltro === t ? 'bg-muted text-fg-0 shadow-sm' : 'text-fg-3 hover:text-fg-1'
+                }`}
+              >
+                {t === 'TODAS' ? 'Todas' : t}
+              </button>
+            ))}
+          </div>
+        }
+        bodyClass="p-0"
+      >
         {isLoading ? (
           <div className="grid gap-3 p-4">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="h-10" />
             ))}
           </div>
-        ) : (pos ?? []).length === 0 ? (
-          <Empty>Nenhuma posição aberta.</Empty>
+        ) : posFiltrado.length === 0 ? (
+          <Empty>Nenhuma posição para este filtro.</Empty>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="table-zebra w-full min-w-[720px] text-sm">
               <thead className="text-xs uppercase tracking-wider text-fg-3">
                 <tr className="border-b border-border-soft">
                   <th className="px-4 py-2 text-left font-medium">Ativo</th>
@@ -113,7 +189,7 @@ export default function Portfolio() {
                 </tr>
               </thead>
               <tbody>
-                {pos.map((p) => (
+                {posFiltrado.map((p) => (
                   <tr key={p.ticker} className="border-b border-border-soft last:border-0 hover:bg-elevated">
                     <td className="px-4 py-2.5">
                       <Link to={`/ativo/${p.ticker}`}>
@@ -137,20 +213,41 @@ export default function Portfolio() {
         )}
       </Card>
 
-      <Card title="Operações registradas" bodyClass="p-0">
-        <ul>
-          {(ops ?? []).map((o) => (
-            <li key={o.id} className="flex items-center gap-3 border-b border-border-soft px-4 py-2.5 last:border-0">
-              <Pill tone={o.tipo === 'COMPRA' ? 'green' : 'red'}>{o.tipo}</Pill>
-              <span className="num text-sm font-bold text-fg-0">{o.ticker}</span>
-              <span className="num text-sm text-fg-2">
-                {fmtNum(o.quantidade, o.quantidade < 1 ? 4 : 0)} × {fmtNum(o.preco_unitario)}
-              </span>
-              <span className="num ml-auto text-sm text-fg-1">{fmtBRL(o.quantidade * o.preco_unitario)}</span>
-              <span className="num w-20 text-right text-xs text-fg-3">{fmtDate(o.data)}</span>
-            </li>
-          ))}
-        </ul>
+      <Card
+        title={<SectionTitle icon={Receipt} tone="amber">Operações registradas</SectionTitle>}
+        action={
+          (ops ?? []).length > 0 && (
+            <button onClick={exportarOperacoesCsv} className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+              <Download size={13} /> Exportar CSV
+            </button>
+          )
+        }
+        bodyClass="p-0"
+      >
+        {(ops ?? []).length === 0 ? (
+          <Empty>Nenhuma operação registrada.</Empty>
+        ) : (
+          <ul>
+            {ops.map((o) => (
+              <li key={o.id} className="flex items-center gap-3 border-b border-border-soft px-4 py-2.5 last:border-0">
+                <Pill tone={o.tipo === 'COMPRA' ? 'green' : 'red'}>{o.tipo}</Pill>
+                <span className="num text-sm font-bold text-fg-0">{o.ticker}</span>
+                <span className="num text-sm text-fg-2">
+                  {fmtNum(o.quantidade, o.quantidade < 1 ? 4 : 0)} × {fmtNum(o.preco_unitario)}
+                </span>
+                <span className="num ml-auto text-sm text-fg-1">{fmtBRL(o.quantidade * o.preco_unitario)}</span>
+                <span className="num w-20 text-right text-xs text-fg-3">{fmtDate(o.data)}</span>
+                <button
+                  onClick={() => deleteOp.mutate(o.id)}
+                  title="Excluir operação"
+                  className="rounded-sm p-1.5 text-fg-3 hover:bg-muted hover:text-down"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <OperationModal open={modal} onClose={() => setModal(false)} />

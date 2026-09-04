@@ -1,18 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { ASSETS } from '../api/mock/assets.js';
 import { useCreateOperation } from '../hooks/queries.js';
 import { fmtBRL } from '../lib/format.js';
 
 const hoje = () => new Date().toISOString().slice(0, 10);
+const vazio = (ticker) => ({ tipo: 'COMPRA', ticker: ticker || 'PETR4', quantidade: '', preco_unitario: '', data: hoje() });
 
-/** UC-04 — registrar operação fictícia. */
-export default function OperationModal({ open, onClose }) {
-  const [form, setForm] = useState({ tipo: 'COMPRA', ticker: 'PETR4', quantidade: '', preco_unitario: '', data: hoje() });
+/** UC-04 — registrar operação fictícia. `initialTicker` pré-seleciona o ativo
+ * quando aberto a partir da tela de detalhe (atalho "Nova operação"). */
+export default function OperationModal({ open, onClose, initialTicker }) {
+  const [form, setForm] = useState(() => vazio(initialTicker));
   const [ok, setOk] = useState(false);
   const mut = useCreateOperation();
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const total = (Number(form.quantidade) || 0) * (Number(form.preco_unitario) || 0);
+
+  useEffect(() => {
+    if (open) setForm(vazio(initialTicker));
+  }, [open, initialTicker]);
 
   if (!open) return null;
 
@@ -30,7 +36,7 @@ export default function OperationModal({ open, onClose }) {
           setTimeout(() => {
             setOk(false);
             onClose();
-            setForm({ tipo: 'COMPRA', ticker: 'PETR4', quantidade: '', preco_unitario: '', data: hoje() });
+            setForm(vazio(initialTicker));
           }, 1400);
         },
       },
@@ -39,7 +45,7 @@ export default function OperationModal({ open, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
-      <div className="fade-in w-full max-w-md rounded-xl border border-border-main bg-surface shadow-md" onClick={(e) => e.stopPropagation()}>
+      <div className="fade-in w-full max-w-md rounded-xl border border-border-main bg-surface shadow-lg" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between border-b border-border-soft px-5 py-3.5">
           <h3 className="text-sm font-semibold text-fg-0">Nova operação</h3>
           <button onClick={onClose} className="text-fg-3 hover:text-fg-1">
@@ -49,7 +55,7 @@ export default function OperationModal({ open, onClose }) {
 
         {ok ? (
           <div className="grid place-items-center gap-3 px-5 py-12 text-center">
-            <div className="grid h-12 w-12 place-items-center rounded-full bg-[#0d2b1a]">
+            <div className="grid h-12 w-12 place-items-center rounded-full bg-tone-green-bg">
               <Check size={22} className="text-up" />
             </div>
             <p className="text-sm font-semibold text-fg-0">Operação registrada</p>
@@ -66,8 +72,8 @@ export default function OperationModal({ open, onClose }) {
                   className={`rounded-[6px] py-2 text-sm font-semibold transition-colors ${
                     form.tipo === t
                       ? t === 'COMPRA'
-                        ? 'bg-[#0d2b1a] text-up'
-                        : 'bg-[#2d1218] text-down'
+                        ? 'bg-tone-green-bg text-up'
+                        : 'bg-tone-red-bg text-down'
                       : 'text-fg-3 hover:text-fg-1'
                   }`}
                 >

@@ -1,8 +1,10 @@
-export function Card({ title, action, children, className = '', bodyClass = 'p-4' }) {
+import { Inbox } from 'lucide-react';
+
+export function Card({ title, action, children, className = '', bodyClass = 'p-4', interactive = false }) {
   return (
-    <section className={`card flex min-w-0 flex-col ${className}`}>
+    <section className={`card ${interactive ? 'card--interactive' : ''} ${className}`}>
       {(title || action) && (
-        <header className="flex items-center justify-between gap-3 border-b border-border-soft px-4 py-3">
+        <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-t-xl border-b border-border-soft bg-elevated px-4 py-3">
           <h3 className="text-sm font-semibold text-fg-1">{title}</h3>
           {action}
         </header>
@@ -13,12 +15,12 @@ export function Card({ title, action, children, className = '', bodyClass = 'p-4
 }
 
 const TONES = {
-  green: 'bg-[#0d2b1a] text-up',
-  red: 'bg-[#2d1218] text-down',
-  yellow: 'bg-[#2b1e00] text-warn',
-  orange: 'bg-[#2b1800] text-[#e3b341]',
-  blue: 'bg-[#0d1f36] text-accent',
-  purple: 'bg-[#1f1040] text-purple',
+  green: 'bg-tone-green-bg text-up',
+  red: 'bg-tone-red-bg text-down',
+  yellow: 'bg-tone-yellow-bg text-warn',
+  orange: 'bg-tone-orange-bg text-tone-orange-fg',
+  blue: 'bg-tone-blue-bg text-accent',
+  purple: 'bg-tone-violet-bg text-purple',
   slate: 'bg-muted text-fg-2',
 };
 
@@ -26,10 +28,47 @@ export function Pill({ tone = 'slate', children, className = '' }) {
   return <span className={`pill ${TONES[tone] ?? TONES.slate} ${className}`}>{children}</span>;
 }
 
-export function Kpi({ label, value, hint, tone }) {
+const ICON_TONES = {
+  accent: 'bg-accent text-white',
+  up: 'bg-up text-[#06251a]',
+  down: 'bg-down text-white',
+  amber: 'bg-brand text-[#2b1c00]',
+  purple: 'bg-purple text-white',
+  slate: 'bg-muted text-fg-1',
+};
+
+/** Ícone em chip colorido — cabeçalho de KPI/seção (padrão de referência).
+ * `live` acrescenta um ping sutil no canto (monitoramento em tempo real). */
+export function IconChip({ icon: Icon, tone = 'accent', size = 34, live = false }) {
+  return (
+    <span className="relative inline-flex" style={{ width: size, height: size }}>
+      <span
+        className={`icon-chip grid h-full w-full place-items-center ${ICON_TONES[tone] ?? ICON_TONES.accent}`}
+      >
+        <Icon size={Math.round(size * 0.46)} />
+      </span>
+      {live && <span className="signal-ping absolute -right-0.5 -top-0.5" />}
+    </span>
+  );
+}
+
+/** Ícone pequeno + rótulo — para títulos de Card (seção). */
+export function SectionTitle({ icon: Icon, tone = 'accent', children }) {
+  return (
+    <span className="flex items-center gap-2">
+      <IconChip icon={Icon} tone={tone} size={24} />
+      {children}
+    </span>
+  );
+}
+
+export function Kpi({ label, value, hint, tone, icon, iconTone = 'accent', live = false }) {
   return (
     <div className="card p-4">
-      <div className="text-xs font-medium uppercase tracking-wider text-fg-3">{label}</div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-xs font-medium uppercase tracking-wider text-fg-3">{label}</div>
+        {icon && <IconChip icon={icon} tone={iconTone} size={30} live={live} />}
+      </div>
       <div className={`mt-2 num text-2xl font-bold ${tone ?? 'text-fg-0'}`}>{value}</div>
       {hint && <div className="mt-1 text-xs text-fg-2">{hint}</div>}
     </div>
@@ -41,5 +80,10 @@ export function Skeleton({ className = 'h-4 w-full' }) {
 }
 
 export function Empty({ children }) {
-  return <div className="py-10 text-center text-sm text-fg-3">{children}</div>;
+  return (
+    <div className="grid place-items-center gap-2 py-10 text-center text-sm text-fg-3">
+      <Inbox size={22} className="text-fg-3 opacity-60" />
+      {children}
+    </div>
+  );
 }

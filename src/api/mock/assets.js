@@ -1,16 +1,18 @@
-/** Universo de ativos mockado — B3 (ações, FII, ETF) + criptomoedas. */
+/** Universo de ativos mockado — B3 (ações, FII, ETF) + criptomoedas.
+ * `fundamentos` segue o recorte clássico de fichas como a do investidor10
+ * (P/L, P/VP, DY, ROE) — nulo onde o indicador não se aplica ao tipo de ativo. */
 export const ASSETS = [
-  { id: 'a1', ticker: 'PETR4', nome: 'Petróleo Brasileiro S.A.', tipo: 'ACAO', setor: 'Petróleo e Gás', moeda: 'BRL', fonte: 'brapi', base: 38.42, vol: 0.019 },
-  { id: 'a2', ticker: 'VALE3', nome: 'Vale S.A.', tipo: 'ACAO', setor: 'Mineração', moeda: 'BRL', fonte: 'brapi', base: 61.15, vol: 0.017 },
-  { id: 'a3', ticker: 'ITUB4', nome: 'Itaú Unibanco Holding', tipo: 'ACAO', setor: 'Financeiro', moeda: 'BRL', fonte: 'brapi', base: 34.9, vol: 0.013 },
-  { id: 'a4', ticker: 'BBAS3', nome: 'Banco do Brasil S.A.', tipo: 'ACAO', setor: 'Financeiro', moeda: 'BRL', fonte: 'brapi', base: 27.31, vol: 0.015 },
-  { id: 'a5', ticker: 'WEGE3', nome: 'WEG S.A.', tipo: 'ACAO', setor: 'Bens Industriais', moeda: 'BRL', fonte: 'brapi', base: 52.8, vol: 0.016 },
-  { id: 'a6', ticker: 'MGLU3', nome: 'Magazine Luiza S.A.', tipo: 'ACAO', setor: 'Varejo', moeda: 'BRL', fonte: 'brapi', base: 9.74, vol: 0.032 },
-  { id: 'a7', ticker: 'BOVA11', nome: 'iShares Ibovespa ETF', tipo: 'ETF', setor: 'Índice', moeda: 'BRL', fonte: 'brapi', base: 128.6, vol: 0.012 },
-  { id: 'a8', ticker: 'HGLG11', nome: 'CSHG Logística FII', tipo: 'FII', setor: 'Logística', moeda: 'BRL', fonte: 'brapi', base: 163.2, vol: 0.008 },
-  { id: 'a9', ticker: 'BTC', nome: 'Bitcoin', tipo: 'CRIPTO', setor: '—', moeda: 'USD', fonte: 'binance', base: 68120, vol: 0.028 },
-  { id: 'a10', ticker: 'ETH', nome: 'Ethereum', tipo: 'CRIPTO', setor: '—', moeda: 'USD', fonte: 'binance', base: 3285, vol: 0.034 },
-  { id: 'a11', ticker: 'SOL', nome: 'Solana', tipo: 'CRIPTO', setor: '—', moeda: 'USD', fonte: 'binance', base: 172.4, vol: 0.045 },
+  { id: 'a1', ticker: 'PETR4', nome: 'Petróleo Brasileiro S.A.', tipo: 'ACAO', setor: 'Petróleo e Gás', moeda: 'BRL', fonte: 'brapi', base: 38.42, vol: 0.019, fundamentos: { pl: 4.6, pvp: 1.3, dy: 12.8, roe: 28.4 } },
+  { id: 'a2', ticker: 'VALE3', nome: 'Vale S.A.', tipo: 'ACAO', setor: 'Mineração', moeda: 'BRL', fonte: 'brapi', base: 61.15, vol: 0.017, fundamentos: { pl: 5.9, pvp: 1.6, dy: 9.4, roe: 22.1 } },
+  { id: 'a3', ticker: 'ITUB4', nome: 'Itaú Unibanco Holding', tipo: 'ACAO', setor: 'Financeiro', moeda: 'BRL', fonte: 'brapi', base: 34.9, vol: 0.013, fundamentos: { pl: 8.2, pvp: 1.8, dy: 6.5, roe: 20.3 } },
+  { id: 'a4', ticker: 'BBAS3', nome: 'Banco do Brasil S.A.', tipo: 'ACAO', setor: 'Financeiro', moeda: 'BRL', fonte: 'brapi', base: 27.31, vol: 0.015, fundamentos: { pl: 4.1, pvp: 0.9, dy: 10.2, roe: 19.8 } },
+  { id: 'a5', ticker: 'WEGE3', nome: 'WEG S.A.', tipo: 'ACAO', setor: 'Bens Industriais', moeda: 'BRL', fonte: 'brapi', base: 52.8, vol: 0.016, fundamentos: { pl: 28.5, pvp: 7.8, dy: 1.4, roe: 27.6 } },
+  { id: 'a6', ticker: 'MGLU3', nome: 'Magazine Luiza S.A.', tipo: 'ACAO', setor: 'Varejo', moeda: 'BRL', fonte: 'brapi', base: 9.74, vol: 0.032, fundamentos: { pl: null, pvp: 2.1, dy: 0, roe: -8.3 } },
+  { id: 'a7', ticker: 'BOVA11', nome: 'iShares Ibovespa ETF', tipo: 'ETF', setor: 'Índice', moeda: 'BRL', fonte: 'brapi', base: 128.6, vol: 0.012, fundamentos: null },
+  { id: 'a8', ticker: 'HGLG11', nome: 'CSHG Logística FII', tipo: 'FII', setor: 'Logística', moeda: 'BRL', fonte: 'brapi', base: 163.2, vol: 0.008, fundamentos: { pl: null, pvp: 1.05, dy: 8.9, roe: null } },
+  { id: 'a9', ticker: 'BTC', nome: 'Bitcoin', tipo: 'CRIPTO', setor: '—', moeda: 'USD', fonte: 'binance', base: 68120, vol: 0.028, fundamentos: null },
+  { id: 'a10', ticker: 'ETH', nome: 'Ethereum', tipo: 'CRIPTO', setor: '—', moeda: 'USD', fonte: 'binance', base: 3285, vol: 0.034, fundamentos: null },
+  { id: 'a11', ticker: 'SOL', nome: 'Solana', tipo: 'CRIPTO', setor: '—', moeda: 'USD', fonte: 'binance', base: 172.4, vol: 0.045, fundamentos: null },
 ];
 
 /** Câmbio mockado usado para consolidar posições em USD nos agregados em BRL. */

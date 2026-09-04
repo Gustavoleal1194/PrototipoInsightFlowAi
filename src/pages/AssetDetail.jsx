@@ -1,19 +1,21 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Sparkles } from 'lucide-react';
-import { useAsset, useHistory, useIndicators, useSignals, useScore, useAnalysis, useWatchlist, useWatchlistMutations } from '../hooks/queries.js';
+import { ArrowLeft, Plus, Sparkles, Target, Radar, Gauge, BarChart3, Receipt, Landmark, Newspaper } from 'lucide-react';
+import { useAsset, useHistory, useIndicators, useSignals, useScore, useAnalysis, useWatchlist, useWatchlistMutations, useNews } from '../hooks/queries.js';
 import { useUiStore } from '../store/index.js';
 import { PERIODS } from '../api/mock/assets.js';
-import { Card, Pill, Skeleton, Empty } from '../components/ui.jsx';
+import { Card, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
 import PriceChart from '../components/PriceChart.jsx';
 import { RsiChart, MacdChart } from '../components/Charts.jsx';
+import OperationModal from '../components/OperationModal.jsx';
 import Disclaimer from '../components/Disclaimer.jsx';
 import { fmtNum, fmtPct, fmtCompact, sinceNow, trendClass } from '../lib/format.js';
 
 const OVERLAYS = [
-  { k: 'sma20', label: 'SMA 20', color: '#58a6ff' },
-  { k: 'sma50', label: 'SMA 50', color: '#d29922' },
-  { k: 'sma200', label: 'SMA 200', color: '#d2a8ff' },
-  { k: 'bollinger', label: 'Bollinger', color: '#484f58' },
+  { k: 'sma20', label: 'SMA 20', color: 'var(--chart-sma20)' },
+  { k: 'sma50', label: 'SMA 50', color: 'var(--chart-sma50)' },
+  { k: 'sma200', label: 'SMA 200', color: 'var(--chart-sma200)' },
+  { k: 'bollinger', label: 'Bollinger', color: 'var(--chart-bollinger)' },
 ];
 
 export default function AssetDetail() {
@@ -25,9 +27,11 @@ export default function AssetDetail() {
   const { data: signals } = useSignals({ ticker, apenasAtivos: false });
   const { data: score } = useScore(ticker);
   const { data: analysis, isLoading: loadingAI } = useAnalysis(ticker);
+  const { data: news } = useNews(ticker);
   const { data: watchlist } = useWatchlist();
   const { add, remove } = useWatchlistMutations();
   const naWatchlist = (watchlist ?? []).some((w) => w.ticker === ticker);
+  const [opModal, setOpModal] = useState(false);
 
   const cot = asset?.cotacao;
 
@@ -54,7 +58,7 @@ export default function AssetDetail() {
           )}
         </div>
 
-        <div className="flex items-end gap-6">
+        <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto sm:gap-6">
           <div className="text-right">
             {cot ? (
               <>
@@ -67,6 +71,9 @@ export default function AssetDetail() {
               <Skeleton className="h-8 w-28" />
             )}
           </div>
+          <button onClick={() => setOpModal(true)} className="btn-ghost">
+            <Receipt size={15} /> Nova operação
+          </button>
           <button
             className={naWatchlist ? 'btn-ghost' : 'btn-primary'}
             onClick={() => (naWatchlist ? remove.mutate(ticker) : add.mutate(ticker))}
@@ -76,20 +83,22 @@ export default function AssetDetail() {
         </div>
       </header>
 
+      <OperationModal open={opModal} onClose={() => setOpModal(false)} initialTicker={ticker} />
+
       <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
         <div className="grid content-start gap-6">
           <Card
             bodyClass="p-2 pt-0"
-            title="Histórico OHLCV"
+            title={<SectionTitle icon={BarChart3}>Histórico OHLCV</SectionTitle>}
             action={
-              <div className="flex items-center gap-3">
-                <div className="flex gap-0.5 rounded-sm bg-elevated p-0.5">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap gap-0.5 rounded-sm bg-elevated p-0.5">
                   {PERIODS.map((p) => (
                     <button
                       key={p.id}
                       onClick={() => setPeriodo(p.id)}
                       className={`num rounded-[6px] px-2 py-1 text-xs font-semibold ${
-                        periodo === p.id ? 'bg-muted text-fg-0' : 'text-fg-3 hover:text-fg-1'
+                        periodo === p.id ? 'bg-muted text-fg-0 shadow-sm' : 'text-fg-3 hover:text-fg-1'
                       }`}
                     >
                       {p.label}
@@ -106,7 +115,7 @@ export default function AssetDetail() {
                     type="checkbox"
                     checked={!!overlays[o.k]}
                     onChange={() => toggleOverlay(o.k)}
-                    className="h-3.5 w-3.5 accent-[#58a6ff]"
+                    className="h-3.5 w-3.5 accent-accent"
                   />
                   <span className="h-0.5 w-4 rounded-full" style={{ background: o.color }} />
                   {o.label}
@@ -129,7 +138,14 @@ export default function AssetDetail() {
             </Card>
           </div>
 
-          <Card title="Sinais e contexto histórico" bodyClass="p-0">
+          <Card
+            title={
+              <SectionTitle icon={Radar} tone="amber">
+                Sinais e contexto histórico
+              </SectionTitle>
+            }
+            bodyClass="p-0"
+          >
             {(signals ?? []).length === 0 ? (
               <Empty>Nenhum sinal registrado para este ativo.</Empty>
             ) : (
@@ -172,7 +188,7 @@ export default function AssetDetail() {
         </div>
 
         <div className="grid content-start gap-6">
-          <Card title="Score de oportunidade">
+          <Card title={<SectionTitle icon={Target}>Score de oportunidade</SectionTitle>}>
             {score ? (
               <div className="flex items-center gap-4">
                 <div className="num text-4xl font-extrabold text-fg-0">{score.score}</div>
@@ -190,6 +206,37 @@ export default function AssetDetail() {
             )}
           </Card>
 
+          {asset?.fundamentos && (
+            <Card title={<SectionTitle icon={Landmark} tone="amber">Indicadores fundamentalistas</SectionTitle>}>
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-xs text-fg-3">P/L</dt>
+                  <dd className="num font-semibold text-fg-0">
+                    {asset.fundamentos.pl == null ? '—' : fmtNum(asset.fundamentos.pl, 1)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-fg-3">P/VP</dt>
+                  <dd className="num font-semibold text-fg-0">
+                    {asset.fundamentos.pvp == null ? '—' : fmtNum(asset.fundamentos.pvp, 2)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-fg-3">Dividend Yield</dt>
+                  <dd className="num font-semibold text-fg-0">
+                    {asset.fundamentos.dy == null ? '—' : fmtPct(asset.fundamentos.dy)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-fg-3">ROE</dt>
+                  <dd className="num font-semibold text-fg-0">
+                    {asset.fundamentos.roe == null ? '—' : fmtPct(asset.fundamentos.roe)}
+                  </dd>
+                </div>
+              </dl>
+            </Card>
+          )}
+
           <Card title="Análise por IA" action={<Sparkles size={15} className="text-purple" />}>
             {loadingAI ? (
               <div className="grid gap-2">
@@ -206,7 +253,7 @@ export default function AssetDetail() {
             )}
           </Card>
 
-          <Card title="Indicadores calculados" bodyClass="p-0">
+          <Card title={<SectionTitle icon={Gauge} tone="purple">Indicadores calculados</SectionTitle>} bodyClass="p-0">
             {snapshot ? (
               <dl>
                 {Object.entries(snapshot).map(([k, v]) => (
@@ -247,6 +294,27 @@ export default function AssetDetail() {
               </dl>
             ) : (
               <Skeleton className="h-16" />
+            )}
+          </Card>
+
+          <Card title={<SectionTitle icon={Newspaper}>Notícias</SectionTitle>} bodyClass="p-0">
+            {!news ? (
+              <div className="grid gap-2 p-4">
+                <Skeleton /> <Skeleton /> <Skeleton className="h-4 w-2/3" />
+              </div>
+            ) : news.length === 0 ? (
+              <Empty>Nenhuma notícia recente para este ativo.</Empty>
+            ) : (
+              <ul>
+                {news.map((n) => (
+                  <li key={n.id} className="border-b border-border-soft px-4 py-3 last:border-0">
+                    <p className="text-sm text-fg-1">{n.titulo}</p>
+                    <p className="mt-1 text-xs text-fg-3">
+                      {n.fonte} · há {sinceNow(n.data)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
         </div>

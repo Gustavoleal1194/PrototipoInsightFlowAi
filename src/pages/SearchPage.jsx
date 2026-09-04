@@ -6,6 +6,7 @@ import { Card, Pill, Skeleton, Empty } from '../components/ui.jsx';
 import { fmtNum } from '../lib/format.js';
 
 const TIPOS = ['TODOS', 'ACAO', 'FII', 'ETF', 'CRIPTO'];
+const MAIS_BUSCADOS = ['PETR4', 'VALE3', 'ITUB4', 'BTC', 'WEGE3'];
 
 /** UC-02 — buscar ativo e adicionar à watchlist. */
 export default function SearchPage() {
@@ -25,6 +26,19 @@ export default function SearchPage() {
         <p className="mt-1">Ações, FIIs e ETFs da B3 e criptomoedas. Ao adicionar, a notificação vem habilitada.</p>
       </header>
 
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-medium text-fg-3">Mais buscados:</span>
+        {MAIS_BUSCADOS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTermo(t)}
+            className="num rounded-full border border-border-main px-2.5 py-1 font-semibold text-fg-2 hover:border-accent hover:text-fg-0"
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap gap-3">
         <div className="relative min-w-[240px] flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
@@ -35,13 +49,13 @@ export default function SearchPage() {
             onChange={(e) => setTermo(e.target.value)}
           />
         </div>
-        <div className="flex gap-0.5 rounded-sm bg-elevated p-0.5">
+        <div className="flex flex-wrap gap-0.5 rounded-sm bg-elevated p-0.5">
           {TIPOS.map((t) => (
             <button
               key={t}
               onClick={() => setTipo(t)}
               className={`rounded-[6px] px-3 py-1.5 text-xs font-semibold ${
-                tipo === t ? 'bg-muted text-fg-0' : 'text-fg-3 hover:text-fg-1'
+                tipo === t ? 'bg-muted text-fg-0 shadow-sm' : 'text-fg-3 hover:text-fg-1'
               }`}
             >
               {t === 'TODOS' ? 'Todos' : t}
