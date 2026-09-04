@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/index.js';
 import AppShell from './components/AppShell.jsx';
+import NotificationScheduler from './components/NotificationScheduler.jsx';
+import ToastHost from './components/ToastHost.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import RecoverPassword from './pages/RecoverPassword.jsx';
@@ -24,21 +26,25 @@ function Private({ children }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/cadastro" element={<Register />} />
-      <Route path="/recuperar-senha" element={<RecoverPassword />} />
-      <Route path="/" element={<Private><Dashboard /></Private>} />
-      <Route path="/ativo/:ticker" element={<Private><AssetDetail /></Private>} />
-      <Route path="/portfolio" element={<Private><Portfolio /></Private>} />
-      <Route path="/rankings" element={<Private><Rankings /></Private>} />
-      <Route path="/comparar" element={<Private><Comparador /></Private>} />
-      <Route path="/chat" element={<Private><Chat /></Private>} />
-      <Route path="/alertas" element={<Private><Alerts /></Private>} />
-      <Route path="/meus-alertas" element={<Private><MyAlerts /></Private>} />
-      <Route path="/busca" element={<Private><SearchPage /></Private>} />
-      <Route path="/configuracoes" element={<Private><Settings /></Private>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <NotificationScheduler />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/cadastro" element={<Register />} />
+        <Route path="/recuperar-senha" element={<RecoverPassword />} />
+        <Route path="/" element={<Private><Dashboard /></Private>} />
+        <Route path="/ativo/:ticker" element={<Private><AssetDetail /></Private>} />
+        <Route path="/portfolio" element={<Private><Portfolio /></Private>} />
+        <Route path="/rankings" element={<Private><Rankings /></Private>} />
+        <Route path="/comparar" element={<Private><Comparador /></Private>} />
+        <Route path="/chat" element={<Private><Chat /></Private>} />
+        <Route path="/alertas" element={<Private><Alerts /></Private>} />
+        <Route path="/meus-alertas" element={<Private><MyAlerts /></Private>} />
+        <Route path="/busca" element={<Private><SearchPage /></Private>} />
+        <Route path="/configuracoes" element={<Private><Settings /></Private>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <ToastHost />
+    </>
   );
 }

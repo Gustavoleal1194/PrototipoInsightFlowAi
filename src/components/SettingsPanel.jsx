@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Bell,
   BellOff,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore, useUiStore } from '../store/index.js';
 import { useWatchlist, useWatchlistMutations, usePositions, useOperations, useSessions, useAccountMutations } from '../hooks/queries.js';
-import { Card, Pill, SectionTitle, Skeleton, Empty } from './ui.jsx';
+import { Card, Pill, SectionTitle, Skeleton, Empty, ErrorState } from './ui.jsx';
 import { fmtDate, sinceNow } from '../lib/format.js';
 
 function Toggle({ label, hint, value, onChange }) {
@@ -125,7 +126,7 @@ function AparenciaCard() {
 
 function SegurancaCard() {
   const { changePassword, revokeSession, revokeOtherSessions } = useAccountMutations();
-  const { data: sessions, isLoading } = useSessions();
+  const { data: sessions, isLoading, isError, refetch } = useSessions();
   const [form, setForm] = useState({ atual: '', nova: '', confirmar: '' });
   const [erroLocal, setErroLocal] = useState('');
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -179,6 +180,8 @@ function SegurancaCard() {
           <div className="grid gap-2">
             <Skeleton className="h-12" /> <Skeleton className="h-12" />
           </div>
+        ) : isError ? (
+          <ErrorState message="Não foi possível carregar as sessões." onRetry={refetch} />
         ) : (
           <ul>
             {(sessions ?? []).map((s) => (
@@ -269,12 +272,27 @@ export default function SettingsPanel() {
     notificacoesDesktop,
     resumoDiario,
     iaIndisponivel,
+    forcarErro,
     setFlag,
   } = useUiStore();
-  const { data: watchlist } = useWatchlist();
+  const { data: watchlist, isLoading: carregandoWatchlist, isError: erroWatchlist, refetch: refazerWatchlist } = useWatchlist();
   const { data: posicoes } = usePositions();
   const { data: operacoes } = useOperations();
   const { toggle } = useWatchlistMutations();
+  const [permissaoNegada, setPermissaoNegada] = useState(
+    typeof Notification !== 'undefined' && Notification.permission === 'denied',
+  );
+
+  /** RF-18/UC-05 — a primeira vez que o usuário liga o web push, o navegador precisa
+   * conceder permissão de notificação; se negar, o toggle não liga e um aviso explica. */
+  const alternarWebPush = async (ligar) => {
+    if (!ligar) return setFlag('notificacoesPush', false);
+    if (typeof Notification === 'undefined') return setPermissaoNegada(true);
+    if (Notification.permission === 'granted') return setFlag('notificacoesPush', true);
+    const resultado = await Notification.requestPermission();
+    setPermissaoNegada(resultado !== 'granted');
+    setFlag('notificacoesPush', resultado === 'granted');
+  };
 
   return (
     <div className="grid gap-6">
@@ -285,10 +303,16 @@ export default function SettingsPanel() {
       <Card title={<SectionTitle icon={Bell}>Notificações</SectionTitle>}>
         <Toggle
           label="Web push"
-          hint="Alertas de sinal técnico entregues no navegador."
+          hint="Alertas de sinal técnico entregues no navegador. Pede permissão do navegador na primeira vez."
           value={notificacoesPush}
-          onChange={(v) => setFlag('notificacoesPush', v)}
+          onChange={alternarWebPush}
         />
+        {permissaoNegada && (
+          <p className="-mt-2 pb-3.5 text-xs text-down">
+            Permissão de notificação negada pelo navegador. Habilite manualmente nas configurações do site para
+            receber web push.
+          </p>
+        )}
         <Toggle
           label="E-mail"
           hint="Resumo de sinais e disparos de alerta por e-mail."
@@ -316,8 +340,16 @@ export default function SettingsPanel() {
       </Card>
 
       <Card title={<SectionTitle icon={Bell} tone="blue">Notificações por ativo</SectionTitle>} bodyClass="p-0">
-        {(watchlist ?? []).length === 0 ? (
-          <Empty>Nenhum ativo na watchlist.</Empty>
+        {carregandoWatchlist ? (
+          <div className="grid gap-2 p-4">
+            <Skeleton className="h-12" /> <Skeleton className="h-12" />
+          </div>
+        ) : erroWatchlist ? (
+          <ErrorState message="Não foi possível carregar a watchlist." onRetry={refazerWatchlist} />
+        ) : (watchlist ?? []).length === 0 ? (
+          <Empty action={<Link to="/busca" className="btn-ghost px-3 py-1.5 text-xs">Buscar ativos</Link>}>
+            Nenhum ativo na watchlist.
+          </Empty>
         ) : (
           <ul>
             {watchlist.map((w) => (
@@ -349,6 +381,12 @@ export default function SettingsPanel() {
           hint="UC-03 (fluxo alternativo): a análise por ativo e o resumo diário passam a sinalizar indisponibilidade, sem quebrar a tela — os dados numéricos continuam aparecendo normalmente."
           value={iaIndisponivel}
           onChange={(v) => setFlag('iaIndisponivel', v)}
+        />
+        <Toggle
+          label="Forçar erro de carregamento"
+          hint="RNF-10: as consultas de leitura (watchlist, portfólio, rankings, alertas etc.) passam a falhar, para demonstrar o estado de erro com nova tentativa em cada tela. Ações de escrita (login, criar operação/alerta) não são afetadas."
+          value={forcarErro}
+          onChange={(v) => setFlag('forcarErro', v)}
         />
       </Card>
 

@@ -27,8 +27,9 @@ import {
   useTopMovers,
   useNews,
 } from '../hooks/queries.js';
+import { useMediaQuery } from '../hooks/useMediaQuery.js';
 import { generateCandles, PERIODS } from '../api/mock/assets.js';
-import { Card, Kpi, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
+import { Card, Kpi, Pill, Skeleton, Empty, ErrorState, SectionTitle } from '../components/ui.jsx';
 import { Sparkline, RsiChart } from '../components/Charts.jsx';
 import PriceChart from '../components/PriceChart.jsx';
 import Disclaimer from '../components/Disclaimer.jsx';
@@ -39,7 +40,8 @@ function MarketChartCard({ watchlist }) {
   const [periodo, setPeriodo] = useState('3m');
   const ativo = ticker || watchlist?.[0]?.ticker;
   const item = (watchlist ?? []).find((w) => w.ticker === ativo);
-  const { data: hist, isLoading } = useHistory(ativo, periodo);
+  const { data: hist, isLoading, isError, refetch } = useHistory(ativo, periodo);
+  const mobile = useMediaQuery('(max-width: 639px)');
 
   if (!ativo) return null;
 
@@ -92,14 +94,21 @@ function MarketChartCard({ watchlist }) {
           Ver análise completa →
         </Link>
       </div>
-      {isLoading || !hist ? (
-        <Skeleton className="mx-2 h-[300px]" />
+      {isLoading || (!hist && !isError) ? (
+        <Skeleton className={`mx-2 ${mobile ? 'h-[220px]' : 'h-[300px]'}`} />
+      ) : isError ? (
+        <ErrorState onRetry={refetch} />
       ) : (
         <>
-          <PriceChart candles={hist.candles} indicators={hist.indicators} moeda={item?.moeda ?? 'BRL'} height={280} />
+          <PriceChart
+            candles={hist.candles}
+            indicators={hist.indicators}
+            moeda={item?.moeda ?? 'BRL'}
+            height={mobile ? 200 : 280}
+          />
           <div className="mt-2 border-t border-border-soft px-2 pt-2">
             <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-fg-3">RSI (14)</div>
-            <RsiChart candles={hist.candles} values={hist.indicators.rsi14} height={90} />
+            <RsiChart candles={hist.candles} values={hist.indicators.rsi14} height={mobile ? 70 : 90} />
           </div>
         </>
       )}
@@ -108,10 +117,12 @@ function MarketChartCard({ watchlist }) {
 }
 
 function TopMoversCard() {
-  const { data } = useTopMovers();
+  const { data, isError, refetch } = useTopMovers();
   return (
     <Card title={<SectionTitle icon={TrendingUp}>Maiores altas e baixas</SectionTitle>} bodyClass="p-0">
-      {!data ? (
+      {isError ? (
+        <ErrorState onRetry={refetch} />
+      ) : !data ? (
         <div className="grid gap-2 p-4">
           <Skeleton /> <Skeleton /> <Skeleton />
         </div>
@@ -150,10 +161,12 @@ function TopMoversCard() {
 }
 
 function NewsCard() {
-  const { data: news } = useNews();
+  const { data: news, isError, refetch } = useNews();
   return (
     <Card title={<SectionTitle icon={Newspaper}>Notícias do mercado</SectionTitle>} bodyClass="p-0">
-      {!news ? (
+      {isError ? (
+        <ErrorState onRetry={refetch} />
+      ) : !news ? (
         <div className="grid gap-2 p-4">
           <Skeleton /> <Skeleton /> <Skeleton className="h-4 w-2/3" />
         </div>
@@ -259,10 +272,10 @@ function RankingColumn({ icon: Icon, tone, label, subtitulo, itens }) {
 }
 
 export default function Dashboard() {
-  const { data: watchlist, isLoading } = useWatchlist();
-  const { data: signals } = useSignals({ apenasAtivos: true });
+  const { data: watchlist, isLoading, isError: erroWatchlist, refetch: refazerWatchlist } = useWatchlist();
+  const { data: signals, isError: erroSignals, refetch: refazerSignals } = useSignals({ apenasAtivos: true });
   const { data: portfolio } = usePortfolio();
-  const { data: positions } = usePositions();
+  const { data: positions, isError: erroPositions, refetch: refazerPositions } = usePositions();
   const { data: resumo, isError: erroResumo } = useDailySummary();
   const { remove, toggle } = useWatchlistMutations();
 
@@ -275,7 +288,7 @@ export default function Dashboard() {
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Kpi
           icon={Wallet}
           label="Patrimônio simulado"
@@ -308,7 +321,11 @@ export default function Dashboard() {
         />
       </div>
 
-      {positions ? (
+      {erroPositions ? (
+        <Card bodyClass="p-5 sm:p-6">
+          <ErrorState message="Não foi possível carregar as posições." onRetry={refazerPositions} />
+        </Card>
+      ) : positions ? (
         <AllocationSplitCard positions={positions} />
       ) : (
         <Card bodyClass="p-5 sm:p-6">
@@ -334,8 +351,12 @@ export default function Dashboard() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
+          ) : erroWatchlist ? (
+            <ErrorState message="Não foi possível carregar a watchlist." onRetry={refazerWatchlist} />
           ) : (watchlist ?? []).length === 0 ? (
-            <Empty>Nenhum ativo na watchlist.</Empty>
+            <Empty action={<Link to="/busca" className="btn-ghost px-3 py-1.5 text-xs">Buscar ativos</Link>}>
+              Nenhum ativo na watchlist.
+            </Empty>
           ) : (
             <div className="overflow-x-auto">
             <table className="table-zebra w-full min-w-[520px] text-sm">
@@ -421,7 +442,15 @@ export default function Dashboard() {
           </Card>
 
           <Card title={<SectionTitle icon={Radar} tone="amber">Sinais ativos</SectionTitle>} bodyClass="p-0">
-            {(signals ?? []).length === 0 ? (
+            {erroSignals ? (
+              <ErrorState onRetry={refazerSignals} />
+            ) : !signals ? (
+              <div className="grid gap-3 p-4">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-12" />
+                ))}
+              </div>
+            ) : signals.length === 0 ? (
               <Empty>Nenhum sinal ativo.</Empty>
             ) : (
               <ul>

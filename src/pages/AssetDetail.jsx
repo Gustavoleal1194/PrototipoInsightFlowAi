@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, CloudOff, Plus, Sparkles, Target, Radar, Gauge, BarChart3, Receipt, Landmark, Newspaper } from 'lucide-react';
 import { useAsset, useHistory, useIndicators, useSignals, useScore, useAnalysis, useWatchlist, useWatchlistMutations, useNews } from '../hooks/queries.js';
+import { useMediaQuery } from '../hooks/useMediaQuery.js';
 import { useUiStore } from '../store/index.js';
 import { PERIODS } from '../api/mock/assets.js';
-import { Card, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
+import { Card, Pill, Skeleton, Empty, ErrorState, SectionTitle } from '../components/ui.jsx';
 import PriceChart from '../components/PriceChart.jsx';
 import { RsiChart, MacdChart } from '../components/Charts.jsx';
 import OperationModal from '../components/OperationModal.jsx';
@@ -22,12 +23,18 @@ export default function AssetDetail() {
   const { ticker } = useParams();
   const { periodo, setPeriodo, overlays, toggleOverlay } = useUiStore();
   const { data: asset } = useAsset(ticker);
-  const { data: hist, isLoading: loadingHist } = useHistory(ticker, periodo);
-  const { data: snapshot } = useIndicators(ticker);
-  const { data: signals } = useSignals({ ticker, apenasAtivos: false });
-  const { data: score } = useScore(ticker);
+  const { data: hist, isLoading: loadingHist, isError: erroHist, refetch: refazerHist } = useHistory(ticker, periodo);
+  const { data: snapshot, isError: erroSnapshot, refetch: refazerSnapshot } = useIndicators(ticker);
+  const {
+    data: signals,
+    isLoading: loadingSignals,
+    isError: erroSignals,
+    refetch: refazerSignals,
+  } = useSignals({ ticker, apenasAtivos: false });
+  const { data: score, isError: erroScore, refetch: refazerScore } = useScore(ticker);
   const { data: analysis, isLoading: loadingAI, isError: erroAI } = useAnalysis(ticker);
-  const { data: news } = useNews(ticker);
+  const { data: news, isError: erroNews, refetch: refazerNews } = useNews(ticker);
+  const mobile = useMediaQuery('(max-width: 639px)');
   const { data: watchlist } = useWatchlist();
   const { add, remove } = useWatchlistMutations();
   const naWatchlist = (watchlist ?? []).some((w) => w.ticker === ticker);
@@ -123,18 +130,37 @@ export default function AssetDetail() {
               ))}
             </div>
             {loadingHist ? (
-              <Skeleton className="mx-2 h-[380px]" />
+              <Skeleton className={`mx-2 ${mobile ? 'h-[260px]' : 'h-[380px]'}`} />
+            ) : erroHist ? (
+              <ErrorState onRetry={refazerHist} />
             ) : (
-              <PriceChart candles={hist.candles} indicators={hist.indicators} moeda={asset?.moeda ?? 'BRL'} />
+              <PriceChart
+                candles={hist.candles}
+                indicators={hist.indicators}
+                moeda={asset?.moeda ?? 'BRL'}
+                height={mobile ? 260 : 380}
+              />
             )}
           </Card>
 
           <div className="grid gap-6 md:grid-cols-2">
             <Card title="RSI (14)" bodyClass="p-2">
-              {hist ? <RsiChart candles={hist.candles} values={hist.indicators.rsi14} /> : <Skeleton className="h-[130px]" />}
+              {erroHist ? (
+                <ErrorState onRetry={refazerHist} />
+              ) : hist ? (
+                <RsiChart candles={hist.candles} values={hist.indicators.rsi14} height={mobile ? 100 : 130} />
+              ) : (
+                <Skeleton className={mobile ? 'h-[100px]' : 'h-[130px]'} />
+              )}
             </Card>
             <Card title="MACD (12, 26, 9)" bodyClass="p-2">
-              {hist ? <MacdChart candles={hist.candles} macd={hist.indicators.macd} /> : <Skeleton className="h-[130px]" />}
+              {erroHist ? (
+                <ErrorState onRetry={refazerHist} />
+              ) : hist ? (
+                <MacdChart candles={hist.candles} macd={hist.indicators.macd} height={mobile ? 100 : 130} />
+              ) : (
+                <Skeleton className={mobile ? 'h-[100px]' : 'h-[130px]'} />
+              )}
             </Card>
           </div>
 
@@ -146,7 +172,15 @@ export default function AssetDetail() {
             }
             bodyClass="p-0"
           >
-            {(signals ?? []).length === 0 ? (
+            {erroSignals ? (
+              <ErrorState onRetry={refazerSignals} />
+            ) : loadingSignals ? (
+              <div className="grid gap-3 p-4">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-16" />
+                ))}
+              </div>
+            ) : (signals ?? []).length === 0 ? (
               <Empty>Nenhum sinal registrado para este ativo.</Empty>
             ) : (
               <ul>
@@ -189,7 +223,9 @@ export default function AssetDetail() {
 
         <div className="grid content-start gap-6">
           <Card title={<SectionTitle icon={Target}>Score de oportunidade</SectionTitle>}>
-            {score ? (
+            {erroScore ? (
+              <ErrorState onRetry={refazerScore} />
+            ) : score ? (
               <div className="flex items-center gap-4">
                 <div className="num text-4xl font-extrabold text-fg-0">{score.score}</div>
                 <div className="flex-1">
@@ -262,7 +298,9 @@ export default function AssetDetail() {
           </Card>
 
           <Card title={<SectionTitle icon={Gauge} tone="purple">Indicadores calculados</SectionTitle>} bodyClass="p-0">
-            {snapshot ? (
+            {erroSnapshot ? (
+              <ErrorState onRetry={refazerSnapshot} />
+            ) : snapshot ? (
               <dl>
                 {Object.entries(snapshot).map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between border-b border-border-soft px-4 py-2.5 last:border-0">
@@ -306,7 +344,9 @@ export default function AssetDetail() {
           </Card>
 
           <Card title={<SectionTitle icon={Newspaper}>Notícias</SectionTitle>} bodyClass="p-0">
-            {!news ? (
+            {erroNews ? (
+              <ErrorState onRetry={refazerNews} />
+            ) : !news ? (
               <div className="grid gap-2 p-4">
                 <Skeleton /> <Skeleton /> <Skeleton className="h-4 w-2/3" />
               </div>

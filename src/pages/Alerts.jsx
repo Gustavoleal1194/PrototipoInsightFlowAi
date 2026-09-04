@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { Bell, CheckCheck, Search } from 'lucide-react';
 import { useAlerts, useMarkAlertRead, useMarkAllAlertsRead } from '../hooks/queries.js';
-import { Card, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
+import { Card, Pill, Skeleton, Empty, ErrorState, SectionTitle } from '../components/ui.jsx';
 import { fmtNum, fmtPct, fmtDateTime, sinceNow } from '../lib/format.js';
 
 const FILTROS = [
@@ -15,7 +15,7 @@ const FILTROS = [
 export default function Alerts() {
   const [filtro, setFiltro] = useState('ativos');
   const [busca, setBusca] = useState('');
-  const { data, isLoading } = useAlerts();
+  const { data, isLoading, isError, refetch } = useAlerts();
   const marcar = useMarkAlertRead();
   const marcarTodos = useMarkAllAlertsRead();
 
@@ -80,6 +80,8 @@ export default function Alerts() {
               <Skeleton key={i} className="h-16" />
             ))}
           </div>
+        ) : isError ? (
+          <ErrorState onRetry={refetch} />
         ) : lista.length === 0 ? (
           <Empty>Nenhum alerta neste filtro.</Empty>
         ) : (

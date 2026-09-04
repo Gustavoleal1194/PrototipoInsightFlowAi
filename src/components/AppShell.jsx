@@ -20,7 +20,7 @@ import {
   PanelLeftOpen,
 } from 'lucide-react';
 import { useAuthStore, useUiStore } from '../store/index.js';
-import { useAlerts } from '../hooks/queries.js';
+import { useAlerts, useUserTriggers } from '../hooks/queries.js';
 import SearchDialog from './SearchDialog.jsx';
 import SettingsModal from './SettingsModal.jsx';
 import TickerTape from './TickerTape.jsx';
@@ -52,7 +52,7 @@ const NAV_GROUPS = [
   },
 ];
 
-function ProfilePopover({ collapsed, usuario, naoLidos, tema, setTema, onNavigate, onOpenSettings, onSignOut }) {
+function ProfilePopover({ collapsed, usuario, naoLidos, naoVistos, tema, setTema, onNavigate, onOpenSettings, onSignOut }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -94,7 +94,7 @@ function ProfilePopover({ collapsed, usuario, naoLidos, tema, setTema, onNavigat
       >
         <span className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-base">
           {usuario?.nome?.[0]?.toUpperCase() ?? 'U'}
-          {naoLidos > 0 && (
+          {naoLidos + naoVistos > 0 && (
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-down" />
           )}
         </span>
@@ -151,6 +151,14 @@ function ProfilePopover({ collapsed, usuario, naoLidos, tema, setTema, onNavigat
                 <span className="rounded-full bg-down px-1.5 text-[11px] font-bold text-white">{naoLidos}</span>
               ),
             )}
+            {item(
+              '/meus-alertas',
+              BellRing,
+              'Meus alertas',
+              naoVistos > 0 && (
+                <span className="rounded-full bg-down px-1.5 text-[11px] font-bold text-white">{naoVistos}</span>
+              ),
+            )}
             {item('/chat', MessageSquare, 'Chat IA')}
             <button
               onClick={() => {
@@ -182,7 +190,7 @@ function ProfilePopover({ collapsed, usuario, naoLidos, tema, setTema, onNavigat
   );
 }
 
-function SidebarContent({ collapsed, usuario, naoLidos, tema, setTema, onNavigate, onSignOut, onToggleCollapse, onOpenSettings }) {
+function SidebarContent({ collapsed, usuario, naoLidos, naoVistos, tema, setTema, onNavigate, onSignOut, onToggleCollapse, onOpenSettings }) {
   return (
     <>
       <div className={`flex h-16 shrink-0 items-center gap-2.5 px-4 ${collapsed ? 'justify-center px-0' : ''}`}>
@@ -244,6 +252,9 @@ function SidebarContent({ collapsed, usuario, naoLidos, tema, setTema, onNavigat
                   {!collapsed && it.to === '/alertas' && naoLidos > 0 && (
                     <span className="rounded-full bg-down px-1.5 text-[11px] font-bold text-white">{naoLidos}</span>
                   )}
+                  {!collapsed && it.to === '/meus-alertas' && naoVistos > 0 && (
+                    <span className="rounded-full bg-down px-1.5 text-[11px] font-bold text-white">{naoVistos}</span>
+                  )}
                 </NavLink>
               ),
             )}
@@ -256,6 +267,7 @@ function SidebarContent({ collapsed, usuario, naoLidos, tema, setTema, onNavigat
           collapsed={collapsed}
           usuario={usuario}
           naoLidos={naoLidos}
+          naoVistos={naoVistos}
           tema={tema}
           setTema={setTema}
           onNavigate={onNavigate}
@@ -281,8 +293,10 @@ export default function AppShell({ children }) {
   const { sidebarOpen, toggleSidebar, mobileNavOpen, setMobileNavOpen, setSearchOpen, setSettingsOpen, tema, setTema } =
     useUiStore();
   const { data: alerts } = useAlerts();
+  const { data: triggers } = useUserTriggers();
   const navigate = useNavigate();
   const naoLidos = (alerts ?? []).filter((a) => a.ativo && !a.lido).length;
+  const naoVistos = (triggers ?? []).filter((t) => !t.visto).length;
 
   return (
     <div className="flex h-full">
@@ -295,6 +309,7 @@ export default function AppShell({ children }) {
           collapsed={false}
           usuario={usuario}
           naoLidos={naoLidos}
+          naoVistos={naoVistos}
           tema={tema}
           setTema={setTema}
           onNavigate={() => setMobileNavOpen(false)}
@@ -318,6 +333,7 @@ export default function AppShell({ children }) {
           collapsed={!sidebarOpen}
           usuario={usuario}
           naoLidos={naoLidos}
+          naoVistos={naoVistos}
           tema={tema}
           setTema={setTema}
           onNavigate={() => {}}

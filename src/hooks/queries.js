@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client.js';
+import { useToastStore } from '../store/toastStore.js';
+import { notificarDisparo } from '../lib/notify.js';
 
 export const useWatchlist = () => useQuery({ queryKey: ['watchlist'], queryFn: () => api.getWatchlist() });
 export const useAsset = (t) => useQuery({ queryKey: ['asset', t], queryFn: () => api.getAsset(t), enabled: !!t });
@@ -25,14 +27,30 @@ export const useDailySummary = () => useQuery({ queryKey: ['daily'], queryFn: ()
 export const useUserRules = () => useQuery({ queryKey: ['userRules'], queryFn: () => api.getUserRules() });
 export const useUserTriggers = () => useQuery({ queryKey: ['userTriggers'], queryFn: () => api.getUserTriggers() });
 
+export function useMarkTriggersSeen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.marcarTriggersVistos(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['userTriggers'] }),
+  });
+}
+
 export function useUserRuleMutations() {
   const qc = useQueryClient();
+  const pushToast = useToastStore((s) => s.push);
   const inv = () => {
     qc.invalidateQueries({ queryKey: ['userRules'] });
     qc.invalidateQueries({ queryKey: ['userTriggers'] });
   };
   return {
-    create: useMutation({ mutationFn: (r) => api.createUserRule(r), onSuccess: inv }),
+    create: useMutation({
+      mutationFn: (r) => api.createUserRule(r),
+      onSuccess: (data) => {
+        inv();
+        // RN-11: se a condição já estava satisfeita no momento da criação, o disparo é imediato
+        if (data.disparo) notificarDisparo(data.disparo, pushToast);
+      },
+    }),
     update: useMutation({ mutationFn: ({ id, patch }) => api.updateUserRule(id, patch), onSuccess: inv }),
     toggle: useMutation({ mutationFn: (id) => api.toggleUserRule(id), onSuccess: inv }),
     remove: useMutation({ mutationFn: (id) => api.deleteUserRule(id), onSuccess: inv }),

@@ -1,4 +1,4 @@
-import { Inbox } from 'lucide-react';
+import { AlertCircle, Inbox, RefreshCw } from 'lucide-react';
 
 export function Card({ title, action, children, className = '', bodyClass = 'p-4', interactive = false }) {
   return (
@@ -64,13 +64,13 @@ export function SectionTitle({ icon: Icon, tone = 'accent', children }) {
 
 export function Kpi({ label, value, hint, tone, icon, iconTone = 'accent', live = false }) {
   return (
-    <div className="card p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-xs font-medium uppercase tracking-wider text-fg-3">{label}</div>
-        {icon && <IconChip icon={icon} tone={iconTone} size={30} live={live} />}
+    <div className="card p-3 sm:p-4">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-fg-3 sm:text-xs">{label}</div>
+        {icon && <IconChip icon={icon} tone={iconTone} size={28} live={live} />}
       </div>
-      <div className={`mt-2 num text-2xl font-bold ${tone ?? 'text-fg-0'}`}>{value}</div>
-      {hint && <div className="mt-1 text-xs text-fg-2">{hint}</div>}
+      <div className={`num mt-1.5 truncate text-lg font-bold sm:mt-2 sm:text-2xl ${tone ?? 'text-fg-0'}`}>{value}</div>
+      {hint && <div className="mt-1 truncate text-[11px] text-fg-2 sm:text-xs">{hint}</div>}
     </div>
   );
 }
@@ -79,11 +79,28 @@ export function Skeleton({ className = 'h-4 w-full' }) {
   return <div className={`animate-pulse rounded-sm bg-muted ${className}`} />;
 }
 
-export function Empty({ children }) {
+export function Empty({ children, action }) {
   return (
     <div className="grid place-items-center gap-2 py-10 text-center text-sm text-fg-3">
       <Inbox size={22} className="text-fg-3 opacity-60" />
       {children}
+      {action}
+    </div>
+  );
+}
+
+/** RNF-10 — estado de erro de carregamento, no mesmo estilo visual do `Empty`,
+ * com ação de nova tentativa (religa a query via `refetch`). */
+export function ErrorState({ message = 'Não foi possível carregar os dados.', onRetry }) {
+  return (
+    <div className="grid place-items-center gap-2 py-10 text-center text-sm text-fg-3">
+      <AlertCircle size={22} className="text-down opacity-80" />
+      <p>{message}</p>
+      {onRetry && (
+        <button onClick={() => onRetry()} className="btn-ghost mt-1 px-3 py-1.5 text-xs">
+          <RefreshCw size={13} /> Tentar novamente
+        </button>
+      )}
     </div>
   );
 }

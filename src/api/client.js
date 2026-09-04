@@ -17,6 +17,17 @@ import { useUiStore } from '../store/index.js';
 
 const delay = (ms = 260) => new Promise((r) => setTimeout(r, ms));
 
+/** RNF-10 — ponto único de latência simulada (300–800 ms) e do alternador "Forçar erro"
+ * (Configurações → Modo desenvolvedor). Usado só pelos métodos de leitura (os que alimentam
+ * useQuery/skeletons) — mutações mantêm seus próprios delays e ficam fora do toggle, pra não
+ * travar ações como login/criação enquanto se testa o estado de erro de uma tela. */
+const delayRead = async () => {
+  await delay(300 + Math.random() * 500);
+  if (useUiStore.getState().forcarErro) {
+    throw new Error('Falha ao carregar os dados. Verifique sua conexão e tente novamente.');
+  }
+};
+
 /* ---------- estado mutável da sessão (substituído pelo banco no backend) ---------- */
 let watchlist = [...WATCHLIST];
 let operations = [...OPERATIONS];
@@ -25,6 +36,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 let readAlerts = new Set();
 let userRules = [...USER_RULES];
 let userTriggers = [...USER_TRIGGERS];
+let vistosTriggers = new Set();
+/* ---------- agendador de reavaliação de regras (RF-18, RN-06, RN-11, RN-13) ---------- */
+let baselineRegras = new Map(); // ruleId -> última condição avaliada (atingido/não)
+let ultimoDisparoDiario = new Map(); // ruleId -> 'YYYY-MM-DD' do último disparo (frequência DIARIA)
 const hAgo = (n) => new Date(Date.now() - n * 3600_000).toISOString();
 let sessions = [
   { id: 'se1', dispositivo: 'Chrome · Windows', local: 'São Paulo, BR', atual: true, ultimo_acesso: new Date().toISOString() },
@@ -68,6 +83,37 @@ const evaluateRule = (rule) => {
     condicao: `${m.label} ${operadorOf(rule.operador).simbolo} ${fmt(rule.valor)}`,
     moeda: asset.moeda,
   };
+};
+
+/** O cliente web só consegue entregar de verdade o canal PUSH (Notification API do
+ * navegador). E-mail, mobile e bandeja do Windows exigiriam um backend/app nativo —
+ * o disparo é registrado no histórico, mas marcado como simulado (nunca "entregue"). */
+const statusEntregaCanal = (canal) => {
+  if (canal !== 'PUSH') return 'simulado';
+  if (typeof Notification === 'undefined') return 'indisponivel';
+  return Notification.permission === 'granted' && useUiStore.getState().notificacoesPush ? 'entregue' : 'indisponivel';
+};
+
+/** Registra o disparo de uma regra do usuário e aplica RN-13 (frequência). */
+const dispararGatilhoRegra = (rule) => {
+  const avaliacao = evaluateRule(rule);
+  const novo = {
+    id: `t${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+    regra_id: rule.id,
+    ticker: rule.ticker,
+    texto: `${avaliacao.condicao} — valor atual ${avaliacao.valor_atual_label}.`,
+    canais: rule.canais,
+    entrega: Object.fromEntries(rule.canais.map((c) => [c, statusEntregaCanal(c)])),
+    data: new Date().toISOString(),
+  };
+  userTriggers = [novo, ...userTriggers];
+
+  if (rule.frequencia === 'UMA_VEZ') {
+    userRules = userRules.map((r) => (r.id === rule.id ? { ...r, ativa: false } : r));
+  } else if (rule.frequencia === 'DIARIA') {
+    ultimoDisparoDiario.set(rule.id, novo.data.slice(0, 10));
+  }
+  return novo;
 };
 
 const quoteOf = (ticker) => {
@@ -135,7 +181,7 @@ export const api = {
     return { ok: true };
   },
   async getSessions() {
-    await delay(220);
+    await delayRead();
     return [...sessions].sort((a, b) => Number(b.atual) - Number(a.atual));
   },
   async revokeSession(id) {
@@ -151,13 +197,13 @@ export const api = {
 
   /* ----- ativos (RF-04, RF-05, RF-06) ----- */
   async searchAssets(termo) {
-    await delay(180);
+    await delayRead();
     const t = (termo || '').trim().toLowerCase();
     if (!t) return ASSETS;
     return ASSETS.filter((a) => a.ticker.toLowerCase().includes(t) || a.nome.toLowerCase().includes(t));
   },
   async getAsset(ticker) {
-    await delay(200);
+    await delayRead();
     const asset = byTicker(ticker);
     if (!asset) throw new Error('Ativo não encontrado.');
     return { ...asset, cotacao: quoteOf(asset.ticker) };
@@ -167,7 +213,7 @@ export const api = {
     return tickers.map(quoteOf);
   },
   async getHistory(ticker, periodo = '1a') {
-    await delay(320);
+    await delayRead();
     const { candles, ind } = seriesOf(ticker);
     const sizes = { '1d': 2, '1s': 6, '1m': 24, '3m': 68, '1a': 254, '5a': candles.length };
     const n = Math.min(sizes[periodo] ?? 254, candles.length);
@@ -187,7 +233,7 @@ export const api = {
     };
   },
   async getIndicatorSnapshot(ticker) {
-    await delay(220);
+    await delayRead();
     const { ind } = seriesOf(ticker);
     return {
       'SMA (20)': lastDefined(ind.sma20),
@@ -204,7 +250,7 @@ export const api = {
 
   /* ----- sinais (RF-07, RF-08) ----- */
   async getSignals({ ticker, apenasAtivos = true } = {}) {
-    await delay(240);
+    await delayRead();
     return SIGNALS.filter((s) => (!ticker || s.ticker === ticker) && (!apenasAtivos || !s.data_desativacao)).map((s) => ({
       ...s,
       regra: ruleOf(s.regra_id),
@@ -216,13 +262,13 @@ export const api = {
     return RULES;
   },
   async getScore(ticker) {
-    await delay(160);
+    await delayRead();
     const ativos = SIGNALS.filter((s) => s.ticker === ticker && !s.data_desativacao);
     const soma = ativos.reduce((a, s) => a + (ruleOf(s.regra_id)?.peso ?? 0), 0);
     return { score: +Math.min(soma * 100, 100).toFixed(0), sinais: ativos.length };
   },
   async getTopMovers(limit = 5) {
-    await delay(260);
+    await delayRead();
     const quotes = ASSETS.map((a) => ({ ...quoteOf(a.ticker), nome: a.nome, tipo: a.tipo }));
     return {
       altas: [...quotes].sort((a, b) => b.variacao_pct - a.variacao_pct).slice(0, limit),
@@ -231,7 +277,7 @@ export const api = {
   },
   /** Rankings de mercado (RF-05 a RF-08) — altas, baixas, volume relativo e sinais, no estilo dos rankings do investidor10. */
   async getRankings(limit = 6) {
-    await delay(320);
+    await delayRead();
     const quotes = ASSETS.map((a) => ({ ...quoteOf(a.ticker), nome: a.nome, tipo: a.tipo }));
     const comIndicadores = ASSETS.map((a) => {
       const ind = computeIndicators(generateCandles(a.ticker));
@@ -255,7 +301,7 @@ export const api = {
   },
   /** Notícias de mercado (opcionalmente filtradas por ativo). */
   async getNews(ticker, limit = 8) {
-    await delay(220);
+    await delayRead();
     return NEWS.filter((n) => !ticker || n.ticker === ticker)
       .sort((a, b) => b.data.localeCompare(a.data))
       .slice(0, limit);
@@ -263,7 +309,7 @@ export const api = {
 
   /* ----- watchlist (RF-03, RN-08) ----- */
   async getWatchlist() {
-    await delay(260);
+    await delayRead();
     return watchlist.map((w) => {
       const asset = byTicker(w.ticker);
       const sinais = SIGNALS.filter((s) => s.ticker === w.ticker && !s.data_desativacao).length;
@@ -289,7 +335,7 @@ export const api = {
 
   /* ----- portfólio (RF-10, RF-11, RF-12) ----- */
   async getOperations() {
-    await delay(240);
+    await delayRead();
     return [...operations].sort((a, b) => b.data.localeCompare(a.data));
   },
   async createOperation(op) {
@@ -304,7 +350,7 @@ export const api = {
     return { ok: true };
   },
   async getPositions() {
-    await delay(320);
+    await delayRead();
     const map = new Map();
     for (const op of operations) {
       const cur = map.get(op.ticker) ?? { ticker: op.ticker, quantidade: 0, custo: 0 };
@@ -341,7 +387,8 @@ export const api = {
       .sort((a, b) => b.valor_atual - a.valor_atual);
   },
   async getPortfolioSummary() {
-    await delay(340);
+    // Derivado de getPositions() — que já paga a latência simulada; evita somar dois
+    // delays independentes (até ~1,6 s) para o que o usuário percebe como uma única busca.
     const pos = await this.getPositions();
     const valor = pos.reduce((a, p) => a + p.valor_atual_brl, 0);
     const custo = pos.reduce((a, p) => a + p.custo_brl, 0);
@@ -357,7 +404,7 @@ export const api = {
     };
   },
   async getDistribution() {
-    await delay(280);
+    // Mesma lógica de getPortfolioSummary — a latência já vem de getPositions().
     const pos = await this.getPositions();
     const total = pos.reduce((a, p) => a + p.valor_atual_brl, 0) || 1;
     const group = (key) => {
@@ -372,7 +419,7 @@ export const api = {
 
   /* ----- alertas (RF-09) ----- */
   async getAlerts() {
-    await delay(240);
+    await delayRead();
     return SIGNALS.map((s) => ({
       id: s.id,
       ticker: s.ticker,
@@ -397,7 +444,7 @@ export const api = {
 
   /* ----- alertas definidos pelo usuário ----- */
   async getUserRules() {
-    await delay(280);
+    await delayRead();
     return userRules
       .map((r) => ({ ...r, ativo: byTicker(r.ticker), avaliacao: evaluateRule(r) }))
       .sort((a, b) => Number(b.ativa) - Number(a.ativa) || b.criada_em.localeCompare(a.criada_em));
@@ -408,20 +455,9 @@ export const api = {
     userRules = [nova, ...userRules];
     const avaliacao = evaluateRule(nova);
     // se a condição já está satisfeita no momento da criação, o disparo é imediato
-    if (avaliacao.atingido) {
-      userTriggers = [
-        {
-          id: `t${Date.now()}`,
-          regra_id: nova.id,
-          ticker: nova.ticker,
-          texto: `${avaliacao.condicao} — valor atual ${avaliacao.valor_atual_label}.`,
-          canais: nova.canais,
-          data: new Date().toISOString(),
-        },
-        ...userTriggers,
-      ];
-    }
-    return { ...nova, avaliacao };
+    const disparo = avaliacao.atingido ? dispararGatilhoRegra(nova) : null;
+    baselineRegras.set(nova.id, avaliacao.atingido);
+    return { ...nova, avaliacao, disparo };
   },
   async toggleUserRule(id) {
     await delay(200);
@@ -433,18 +469,54 @@ export const api = {
     if (!(Number(patch.valor) > 0)) throw new Error('Informe um valor-alvo maior que zero.');
     userRules = userRules.map((r) => (r.id === id ? { ...r, ...patch } : r));
     const atualizada = userRules.find((r) => r.id === id);
+    const avaliacao = evaluateRule(atualizada);
     // RN-11: editar rearma a regra, mas não dispara na hora — mesmo que a condição já esteja
-    // satisfeita, o disparo só ocorre na próxima transição de não-atendida para atendida.
-    return { ...atualizada, avaliacao: evaluateRule(atualizada) };
+    // satisfeita, o disparo só ocorre na próxima transição de não-atendida para atendida. Por
+    // isso o agendador precisa "esquecer" o estado anterior e recomeçar do valor pós-edição.
+    baselineRegras.set(id, avaliacao.atingido);
+    return { ...atualizada, avaliacao };
   },
   async deleteUserRule(id) {
     await delay(220);
     userRules = userRules.filter((r) => r.id !== id);
+    baselineRegras.delete(id);
+    ultimoDisparoDiario.delete(id);
     return { ok: true };
   },
   async getUserTriggers() {
-    await delay(240);
-    return userTriggers.slice(0, 20);
+    await delayRead();
+    return userTriggers.slice(0, 20).map((t) => ({ ...t, visto: vistosTriggers.has(t.id) }));
+  },
+  async marcarTriggersVistos() {
+    await delay(120);
+    vistosTriggers = new Set([...vistosTriggers, ...userTriggers.map((t) => t.id)]);
+    return { ok: true };
+  },
+  /** RN-06 — agendador em memória: reavalia as regras ativas do usuário periodicamente,
+   * separando renda variável (15 min) de cripto (5 min) via `classe`. Dispara apenas na
+   * transição de não-atendida para atendida (RN-11) e respeita a frequência (RN-13).
+   * Retorna os disparos novos desta passada, para a UI decidir como notificar. */
+  async reavaliarRegrasUsuario(classe) {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const disparadas = [];
+    for (const rule of userRules) {
+      if (!rule.ativa) {
+        baselineRegras.delete(rule.id);
+        continue;
+      }
+      const ehCripto = byTicker(rule.ticker)?.tipo === 'CRIPTO';
+      if (classe && (ehCripto ? classe !== 'CRIPTO' : classe !== 'RENDA_VARIAVEL')) continue;
+
+      const atingidoAgora = evaluateRule(rule).atingido;
+      const atingidoAntes = baselineRegras.has(rule.id) ? baselineRegras.get(rule.id) : atingidoAgora;
+      baselineRegras.set(rule.id, atingidoAgora);
+
+      if (!atingidoAntes && atingidoAgora) {
+        if (rule.frequencia === 'DIARIA' && ultimoDisparoDiario.get(rule.id) === hoje) continue;
+        disparadas.push(dispararGatilhoRegra(rule));
+      }
+    }
+    return disparadas;
   },
 
   /* ----- IA (RF-13, RF-14, RF-15) ----- */

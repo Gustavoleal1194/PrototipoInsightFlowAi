@@ -364,6 +364,26 @@ html[data-tema='claro'] {
 .ticker-tape:hover .ticker-tape__track {
   animation-play-state: paused;
 }
+/* RNF-07 — abaixo de md a barra não tem hover pra pausar a animação (touch), então vira
+ * rolagem manual: para a animação, libera overflow-x e some com a metade duplicada da
+ * trilha (só existia pra fechar o loop contínuo do carrossel). */
+@media (max-width: 767px) {
+  .ticker-tape {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    mask-image: none;
+  }
+  .ticker-tape::-webkit-scrollbar {
+    display: none;
+  }
+  .ticker-tape__track {
+    animation: none;
+  }
+  .ticker-tape__item[aria-hidden] {
+    display: none;
+  }
+}
 @keyframes ticker-scroll {
   from {
     transform: translateX(0);

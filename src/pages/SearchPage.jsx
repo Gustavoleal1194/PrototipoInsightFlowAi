@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Plus, Search } from 'lucide-react';
 import { useSearch, useWatchlist, useWatchlistMutations } from '../hooks/queries.js';
-import { Card, Pill, Skeleton, Empty } from '../components/ui.jsx';
+import { Card, Pill, Skeleton, Empty, ErrorState } from '../components/ui.jsx';
 import { fmtNum } from '../lib/format.js';
 
 const TIPOS = ['TODOS', 'ACAO', 'FII', 'ETF', 'CRIPTO'];
@@ -12,7 +12,7 @@ const MAIS_BUSCADOS = ['PETR4', 'VALE3', 'ITUB4', 'BTC', 'WEGE3'];
 export default function SearchPage() {
   const [termo, setTermo] = useState('');
   const [tipo, setTipo] = useState('TODOS');
-  const { data, isFetching } = useSearch(termo);
+  const { data, isFetching, isError, refetch } = useSearch(termo);
   const { data: watchlist } = useWatchlist();
   const { add, remove } = useWatchlistMutations();
 
@@ -71,8 +71,24 @@ export default function SearchPage() {
               <Skeleton key={i} className="h-12" />
             ))}
           </div>
+        ) : isError ? (
+          <ErrorState onRetry={refetch} />
         ) : lista.length === 0 ? (
-          <Empty>Nenhum ativo corresponde à busca.</Empty>
+          <Empty
+            action={
+              <button
+                onClick={() => {
+                  setTermo('');
+                  setTipo('TODOS');
+                }}
+                className="btn-ghost px-3 py-1.5 text-xs"
+              >
+                Limpar busca
+              </button>
+            }
+          >
+            Nenhum ativo corresponde à busca.
+          </Empty>
         ) : (
           <ul>
             {lista.map((a) => (

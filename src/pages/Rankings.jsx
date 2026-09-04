@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom';
 import { Activity, Radar, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRankings } from '../hooks/queries.js';
-import { Card, Empty, Pill, SectionTitle, Skeleton } from '../components/ui.jsx';
+import { Card, Empty, ErrorState, Pill, SectionTitle, Skeleton } from '../components/ui.jsx';
 import { fmtNum, fmtPct } from '../lib/format.js';
 
-function RankingCard({ title, icon, tone, itens, render }) {
+function RankingCard({ title, icon, tone, itens, isError, onRetry, render }) {
   return (
     <Card title={<SectionTitle icon={icon} tone={tone}>{title}</SectionTitle>} bodyClass="p-0">
-      {!itens ? (
+      {isError ? (
+        <ErrorState onRetry={onRetry} />
+      ) : !itens ? (
         <div className="grid gap-3 p-4">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-10" />
@@ -38,7 +40,7 @@ function RankingCard({ title, icon, tone, itens, render }) {
 /** Rankings de mercado — altas, baixas, volume relativo e sinais ativos,
  * inspirado nos rankings de ativos do investidor10. */
 export default function Rankings() {
-  const { data } = useRankings();
+  const { data, isError, refetch } = useRankings();
 
   return (
     <div className="mx-auto grid max-w-[1400px] gap-6">
@@ -53,6 +55,8 @@ export default function Rankings() {
           icon={TrendingUp}
           tone="up"
           itens={data?.altas}
+          isError={isError}
+          onRetry={refetch}
           render={(it) => <span className="num text-sm font-semibold text-up">{fmtPct(it.variacao_pct)}</span>}
         />
         <RankingCard
@@ -60,6 +64,8 @@ export default function Rankings() {
           icon={TrendingDown}
           tone="down"
           itens={data?.baixas}
+          isError={isError}
+          onRetry={refetch}
           render={(it) => <span className="num text-sm font-semibold text-down">{fmtPct(it.variacao_pct)}</span>}
         />
         <RankingCard
@@ -67,6 +73,8 @@ export default function Rankings() {
           icon={Activity}
           tone="purple"
           itens={data?.volume}
+          isError={isError}
+          onRetry={refetch}
           render={(it) => <span className="num text-sm font-semibold text-fg-0">{fmtNum(it.volRel, 2)}×</span>}
         />
         <RankingCard
@@ -74,6 +82,8 @@ export default function Rankings() {
           icon={Radar}
           tone="amber"
           itens={data?.sinais}
+          isError={isError}
+          onRetry={refetch}
           render={(it) => <Pill tone="blue">{it.sinais}</Pill>}
         />
       </div>

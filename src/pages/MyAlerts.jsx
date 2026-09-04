@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BellRing, Check, Copy, ListChecks, Pencil, Plus, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { ASSETS, byTicker } from '../api/mock/assets.js';
 import { METRICAS, OPERADORES, CANAIS, FREQUENCIAS, metricaOf, operadorOf } from '../api/mock/userAlerts.js';
-import { useUserRules, useUserTriggers, useUserRuleMutations } from '../hooks/queries.js';
-import { Card, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
+import { useUserRules, useUserTriggers, useUserRuleMutations, useMarkTriggersSeen } from '../hooks/queries.js';
+import { Card, Pill, Skeleton, Empty, ErrorState, SectionTitle } from '../components/ui.jsx';
 import { fmtBRL, fmtNum, sinceNow } from '../lib/format.js';
 
 const VAZIO = { ticker: 'BTC', metrica: 'PRECO', operador: 'GTE', valor: '', canais: ['PUSH'], frequencia: 'UMA_VEZ', nota: '' };
@@ -14,9 +14,15 @@ export default function MyAlerts() {
   const [form, setForm] = useState(VAZIO);
   const [erros, setErros] = useState({});
   const [editandoId, setEditandoId] = useState(null);
-  const { data: regras, isLoading } = useUserRules();
-  const { data: disparos } = useUserTriggers();
+  const { data: regras, isLoading, isError: erroRegras, refetch: refazerRegras } = useUserRules();
+  const { data: disparos, isLoading: carregandoDisparos, isError: erroDisparos, refetch: refazerDisparos } = useUserTriggers();
   const { create, update, toggle, remove } = useUserRuleMutations();
+  const marcarVistos = useMarkTriggersSeen();
+
+  useEffect(() => {
+    if ((disparos ?? []).some((d) => !d.visto)) marcarVistos.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disparos]);
   const set = (k) => (e) => {
     setForm({ ...form, [k]: e.target.value });
     if (erros[k]) setErros({ ...erros, [k]: undefined });
@@ -226,8 +232,21 @@ export default function MyAlerts() {
                   <Skeleton key={i} className="h-16" />
                 ))}
               </div>
+            ) : erroRegras ? (
+              <ErrorState onRetry={refazerRegras} />
             ) : (regras ?? []).length === 0 ? (
-              <Empty>Nenhuma regra criada.</Empty>
+              <Empty
+                action={
+                  <button
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="btn-ghost px-3 py-1.5 text-xs"
+                  >
+                    Criar meu primeiro alerta
+                  </button>
+                }
+              >
+                Nenhuma regra criada.
+              </Empty>
             ) : (
               <ul>
                 {regras.map((r) => (
@@ -312,20 +331,36 @@ export default function MyAlerts() {
             title={<SectionTitle icon={BellRing}>Disparos recentes</SectionTitle>}
             bodyClass="p-0"
           >
-            {(disparos ?? []).length === 0 ? (
+            {carregandoDisparos ? (
+              <div className="grid gap-3 p-4">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-14" />
+                ))}
+              </div>
+            ) : erroDisparos ? (
+              <ErrorState onRetry={refazerDisparos} />
+            ) : (disparos ?? []).length === 0 ? (
               <Empty>Nenhum disparo registrado.</Empty>
             ) : (
               <ul>
                 {disparos.map((d) => (
                   <li key={d.id} className="flex items-start gap-3 border-b border-border-soft px-4 py-3 last:border-0">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="num text-sm font-bold text-fg-0">{d.ticker}</span>
-                        <span className="text-xs text-fg-3">
-                          {d.canais.map((c) => CANAIS.find((x) => x.id === c)?.label).join(' · ')}
-                        </span>
-                      </div>
+                      <span className="num text-sm font-bold text-fg-0">{d.ticker}</span>
                       <p className="mt-1">{d.texto}</p>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {d.canais.map((c) => {
+                          const status = d.entrega?.[c] ?? 'simulado';
+                          const label = CANAIS.find((x) => x.id === c)?.label ?? c;
+                          const tone = status === 'entregue' ? 'green' : status === 'indisponivel' ? 'red' : 'slate';
+                          const statusLabel = status === 'entregue' ? 'entregue' : status === 'indisponivel' ? 'indisponível' : 'simulado';
+                          return (
+                            <Pill key={c} tone={tone}>
+                              {label} · {statusLabel}
+                            </Pill>
+                          );
+                        })}
+                      </div>
                     </div>
                     <span className="shrink-0 text-xs text-fg-3">há {sinceNow(d.data)}</span>
                   </li>

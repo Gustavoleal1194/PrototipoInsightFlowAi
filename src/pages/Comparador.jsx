@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import { ASSETS } from '../api/mock/assets.js';
 import { useAsset, useIndicators, useScore } from '../hooks/queries.js';
-import { Card, Empty, Skeleton } from '../components/ui.jsx';
+import { Card, Empty, ErrorState, Skeleton } from '../components/ui.jsx';
 import { fmtNum, fmtPct, trendClass } from '../lib/format.js';
 
 const MAX = 4;
@@ -18,7 +18,7 @@ function Linha({ label, value, tone }) {
 }
 
 function ComparadorColuna({ ticker, onRemove }) {
-  const { data: asset } = useAsset(ticker);
+  const { data: asset, isError, refetch } = useAsset(ticker);
   const { data: snapshot } = useIndicators(ticker);
   const { data: score } = useScore(ticker);
   const cot = asset?.cotacao;
@@ -32,7 +32,9 @@ function ComparadorColuna({ ticker, onRemove }) {
         </button>
       }
     >
-      {!asset ? (
+      {isError ? (
+        <ErrorState onRetry={refetch} />
+      ) : !asset ? (
         <div className="grid gap-2">
           <Skeleton /> <Skeleton /> <Skeleton />
         </div>
