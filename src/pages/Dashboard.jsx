@@ -11,11 +11,15 @@ import {
   Radar,
   LineChart as LineChartIcon,
   Newspaper,
+  Landmark,
+  Bitcoin,
+  PieChart as PieChartIcon,
 } from 'lucide-react';
 import {
   useWatchlist,
   useSignals,
   usePortfolio,
+  usePositions,
   useDailySummary,
   useWatchlistMutations,
   useHistory,
@@ -23,8 +27,8 @@ import {
   useNews,
 } from '../hooks/queries.js';
 import { generateCandles, PERIODS } from '../api/mock/assets.js';
-import { Card, Kpi, Pill, Skeleton, Empty, SectionTitle } from '../components/ui.jsx';
-import { Sparkline, RsiChart } from '../components/Charts.jsx';
+import { Card, Kpi, Pill, Skeleton, Empty, SectionTitle, IconChip } from '../components/ui.jsx';
+import { Sparkline, RsiChart, DonutChart } from '../components/Charts.jsx';
 import PriceChart from '../components/PriceChart.jsx';
 import Disclaimer from '../components/Disclaimer.jsx';
 import { fmtBRL, fmtNum, fmtPct, sinceNow, trendClass } from '../lib/format.js';
@@ -172,10 +176,92 @@ function NewsCard() {
   );
 }
 
+const ALLOCATION_DONUT_COLORS = [
+  'var(--chart-sma20)',
+  'var(--chart-bench-portfolio)',
+  'var(--chart-sma200)',
+  'var(--chart-sma50)',
+  'var(--chart-axis)',
+];
+
+function AllocationSplitCard({ positions }) {
+  const pos = positions ?? [];
+  const total = pos.reduce((a, p) => a + p.valor_atual_brl, 0) || 1;
+
+  const ladoDe = (filtro) => {
+    const itens = pos.filter(filtro);
+    const valor = itens.reduce((a, p) => a + p.valor_atual_brl, 0);
+    const custo = itens.reduce((a, p) => a + p.custo_brl, 0);
+    return {
+      valor,
+      resultado: valor - custo,
+      resultado_pct: custo ? ((valor - custo) / custo) * 100 : 0,
+      pct: (valor / total) * 100,
+      composicao: itens
+        .map((p) => ({ nome: p.ticker, pct: valor ? (p.valor_atual_brl / valor) * 100 : 0 }))
+        .sort((a, b) => b.pct - a.pct),
+    };
+  };
+
+  const acoes = ladoDe((p) => p.tipo !== 'CRIPTO');
+  const cripto = ladoDe((p) => p.tipo === 'CRIPTO');
+
+  return (
+    <Card title={<SectionTitle icon={PieChartIcon} tone="purple">Alocação por classe</SectionTitle>}>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AllocationSide icon={Landmark} tone="accent" label="Ações & Fundos" data={acoes} />
+        <AllocationSide icon={Bitcoin} tone="amber" label="Cripto" data={cripto} />
+      </div>
+    </Card>
+  );
+}
+
+function AllocationSide({ icon: Icon, tone, label, data }) {
+  return (
+    <div className="grid gap-3 rounded-xl border border-border-soft p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex min-w-0 items-center gap-2">
+          <IconChip icon={Icon} tone={tone} size={30} />
+          <span className="truncate text-sm font-semibold text-fg-1">{label}</span>
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-fg-3" title="% do patrimônio total">
+          {fmtNum(data.pct, 1)}%
+        </span>
+      </div>
+      <div className="num text-2xl font-bold text-fg-0">{fmtBRL(data.valor)}</div>
+      <div className={`num text-sm font-semibold ${trendClass(data.resultado)}`}>
+        {fmtBRL(data.resultado)} <span className="text-xs">({fmtPct(data.resultado_pct)})</span>
+      </div>
+      {data.composicao.length === 0 ? (
+        <p className="text-xs text-fg-3">Nenhuma posição nesta classe.</p>
+      ) : (
+        <div className="grid grid-cols-[110px_1fr] items-center gap-3">
+          <DonutChart data={data.composicao} height={110} />
+          <ul className="grid gap-1">
+            {data.composicao.map((d, i) => (
+              <li key={d.nome} className="flex items-center justify-between gap-3 text-xs">
+                <span className="flex items-center gap-1.5 text-fg-1">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: ALLOCATION_DONUT_COLORS[i % ALLOCATION_DONUT_COLORS.length] }}
+                  />
+                  <span className="num font-semibold">{d.nome}</span>
+                </span>
+                <span className="num text-fg-3">{fmtNum(d.pct, 1)}%</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { data: watchlist, isLoading } = useWatchlist();
   const { data: signals } = useSignals({ apenasAtivos: true });
   const { data: portfolio } = usePortfolio();
+  const { data: positions } = usePositions();
   const { data: resumo } = useDailySummary();
   const { remove, toggle } = useWatchlistMutations();
 
@@ -220,6 +306,17 @@ export default function Dashboard() {
           hint="Reavaliação a cada 15 min no pregão"
         />
       </div>
+
+      {positions ? (
+        <AllocationSplitCard positions={positions} />
+      ) : (
+        <Card title={<SectionTitle icon={PieChartIcon} tone="purple">Alocação por classe</SectionTitle>}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+        </Card>
+      )}
 
       {(watchlist ?? []).length > 0 && <MarketChartCard watchlist={watchlist} />}
 
