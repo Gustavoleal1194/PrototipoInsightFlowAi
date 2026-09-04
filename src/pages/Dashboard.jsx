@@ -14,6 +14,7 @@ import {
   Landmark,
   Bitcoin,
   PieChart as PieChartIcon,
+  ChevronRight,
 } from 'lucide-react';
 import {
   useWatchlist,
@@ -28,7 +29,7 @@ import {
 } from '../hooks/queries.js';
 import { generateCandles, PERIODS } from '../api/mock/assets.js';
 import { Card, Kpi, Pill, Skeleton, Empty, SectionTitle, IconChip } from '../components/ui.jsx';
-import { Sparkline, RsiChart, DonutChart } from '../components/Charts.jsx';
+import { Sparkline, RsiChart } from '../components/Charts.jsx';
 import PriceChart from '../components/PriceChart.jsx';
 import Disclaimer from '../components/Disclaimer.jsx';
 import { fmtBRL, fmtNum, fmtPct, sinceNow, trendClass } from '../lib/format.js';
@@ -176,83 +177,75 @@ function NewsCard() {
   );
 }
 
-const ALLOCATION_DONUT_COLORS = [
-  'var(--chart-sma20)',
-  'var(--chart-bench-portfolio)',
-  'var(--chart-sma200)',
-  'var(--chart-sma50)',
-  'var(--chart-axis)',
-];
+const AVATAR_COLORS = ['#3aa0ff', '#22c58a', '#a855f7', '#f5a623', '#fb5468', '#64748b'];
 
 function AllocationSplitCard({ positions }) {
   const pos = positions ?? [];
-  const total = pos.reduce((a, p) => a + p.valor_atual_brl, 0) || 1;
 
-  const ladoDe = (filtro) => {
-    const itens = pos.filter(filtro);
-    const valor = itens.reduce((a, p) => a + p.valor_atual_brl, 0);
-    const custo = itens.reduce((a, p) => a + p.custo_brl, 0);
-    return {
-      valor,
-      resultado: valor - custo,
-      resultado_pct: custo ? ((valor - custo) / custo) * 100 : 0,
-      pct: (valor / total) * 100,
-      composicao: itens
-        .map((p) => ({ nome: p.ticker, pct: valor ? (p.valor_atual_brl / valor) * 100 : 0 }))
-        .sort((a, b) => b.pct - a.pct),
-    };
-  };
+  const ladoDe = (filtro) =>
+    pos
+      .filter(filtro)
+      .map((p) => ({ ticker: p.ticker, nome: p.setorLabel ?? p.setor, valor: p.valor_atual_brl }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 5);
 
   const acoes = ladoDe((p) => p.tipo !== 'CRIPTO');
   const cripto = ladoDe((p) => p.tipo === 'CRIPTO');
 
   return (
-    <Card title={<SectionTitle icon={PieChartIcon} tone="purple">Alocação por classe</SectionTitle>}>
+    <Card title={<SectionTitle icon={PieChartIcon} tone="purple">Ações vs. Cripto</SectionTitle>}>
       <div className="grid gap-4 lg:grid-cols-2">
-        <AllocationSide icon={Landmark} tone="accent" label="Ações & Fundos" data={acoes} />
-        <AllocationSide icon={Bitcoin} tone="amber" label="Cripto" data={cripto} />
+        <RankingColumn icon={Landmark} tone="accent" label="Ações & Fundos" subtitulo="Maior valor investido" itens={acoes} />
+        <RankingColumn icon={Bitcoin} tone="amber" label="Cripto" subtitulo="Maior valor investido" itens={cripto} />
       </div>
     </Card>
   );
 }
 
-function AllocationSide({ icon: Icon, tone, label, data }) {
+function RankingColumn({ icon: Icon, tone, label, subtitulo, itens }) {
   return (
-    <div className="grid gap-3 rounded-xl border border-border-soft p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex min-w-0 items-center gap-2">
-          <IconChip icon={Icon} tone={tone} size={30} />
-          <span className="truncate text-sm font-semibold text-fg-1">{label}</span>
-        </div>
-        <span className="shrink-0 text-xs font-semibold text-fg-3" title="% do patrimônio total">
-          {fmtNum(data.pct, 1)}%
-        </span>
+    <div className="rounded-2xl border border-border-soft bg-elevated p-5">
+      <div className="flex flex-col items-center gap-1 pb-4 text-center">
+        <IconChip icon={Icon} tone={tone} size={38} />
+        <h4 className="mt-1 text-base font-bold text-fg-0">{label}</h4>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-3">{subtitulo}</p>
       </div>
-      <div className="num text-2xl font-bold text-fg-0">{fmtBRL(data.valor)}</div>
-      <div className={`num text-sm font-semibold ${trendClass(data.resultado)}`}>
-        {fmtBRL(data.resultado)} <span className="text-xs">({fmtPct(data.resultado_pct)})</span>
-      </div>
-      {data.composicao.length === 0 ? (
-        <p className="text-xs text-fg-3">Nenhuma posição nesta classe.</p>
+
+      {itens.length === 0 ? (
+        <p className="py-4 text-center text-xs text-fg-3">Nenhuma posição nesta classe.</p>
       ) : (
-        <div className="grid grid-cols-[110px_1fr] items-center gap-3">
-          <DonutChart data={data.composicao} height={110} />
-          <ul className="grid gap-1">
-            {data.composicao.map((d, i) => (
-              <li key={d.nome} className="flex items-center justify-between gap-3 text-xs">
-                <span className="flex items-center gap-1.5 text-fg-1">
-                  <span
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ background: ALLOCATION_DONUT_COLORS[i % ALLOCATION_DONUT_COLORS.length] }}
-                  />
-                  <span className="num font-semibold">{d.nome}</span>
+        <ul className="grid gap-1 border-t border-border-soft pt-2">
+          {itens.map((item, i) => (
+            <li key={item.ticker}>
+              <Link
+                to={`/ativo/${item.ticker}`}
+                className="flex items-center gap-3 rounded-lg px-1.5 py-2 hover:bg-muted"
+              >
+                <span className="w-5 shrink-0 text-xs font-bold text-fg-3">#{i + 1}</span>
+                <span
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[11px] font-bold text-white"
+                  style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                >
+                  {item.ticker.slice(0, 2)}
                 </span>
-                <span className="num text-fg-3">{fmtNum(d.pct, 1)}%</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+                <span className="min-w-0 flex-1">
+                  <span className="num block truncate text-sm font-bold text-fg-0">{item.ticker}</span>
+                  <span className="block truncate text-xs text-fg-3">{item.nome}</span>
+                </span>
+                <span className="num shrink-0 text-sm font-semibold text-fg-0">{fmtBRL(item.valor)}</span>
+                <ChevronRight size={16} className="shrink-0 text-fg-3" />
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
+
+      <Link
+        to="/portfolio"
+        className="mt-3 block rounded-lg border border-border-soft py-2 text-center text-xs font-semibold text-fg-2 hover:bg-muted hover:text-fg-0"
+      >
+        Ver carteira completa
+      </Link>
     </div>
   );
 }
