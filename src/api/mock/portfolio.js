@@ -9,6 +9,7 @@ export const OPERATIONS = [
   { id: 'o7', ticker: 'BTC', tipo: 'COMPRA', quantidade: 0.12, preco_unitario: 61200, data: '2026-05-02' },
   { id: 'o8', ticker: 'ETH', tipo: 'COMPRA', quantidade: 1.4, preco_unitario: 2980, data: '2026-06-14' },
   { id: 'o9', ticker: 'WEGE3', tipo: 'COMPRA', quantidade: 120, preco_unitario: 49.2, data: '2026-07-01' },
+  { id: 'o10', ticker: 'SOL', tipo: 'COMPRA', quantidade: 30, preco_unitario: 150.2, data: '2026-07-20' },
 ];
 
 /** Evolução da carteira vs. benchmarks (RF-11) — base 100. */
